@@ -46,16 +46,16 @@ export default function Hero() {
       />
 
       {/* Content */}
-      <div className="relative z-10 max-w-6xl mx-auto px-6 lg:px-10 text-center">
+      <div className="relative z-10 max-w-6xl mx-auto px-5 lg:px-10 text-center pt-24 pb-8 md:pt-0 md:pb-0">
         {/* Badge */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.3 }}
-          className="inline-flex items-center gap-2 mb-8 px-4 py-2 rounded-full border border-[#C9A84C]/30 bg-[#C9A84C]/5"
+          className="inline-flex items-center gap-2 mb-6 px-3 py-1.5 rounded-full border border-[#C9A84C]/30 bg-[#C9A84C]/5 max-w-[90vw]"
         >
-          <span className="w-1.5 h-1.5 rounded-full bg-[#C9A84C] animate-pulse" />
-          <span className="text-[#C9A84C] text-xs font-semibold tracking-[0.15em] uppercase">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#C9A84C] animate-pulse flex-shrink-0" />
+          <span className="text-[#C9A84C] text-[10px] sm:text-xs font-semibold tracking-[0.1em] uppercase leading-tight">
             Генеральный подрядчик государственного рекрутинга
           </span>
         </motion.div>
@@ -65,13 +65,11 @@ export default function Hero() {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, delay: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-[-0.04em] text-[#F8FAFC] leading-[0.9] mb-6"
+          className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-black tracking-[-0.03em] text-[#F8FAFC] leading-[0.95] mb-5"
         >
           Ваш надёжный
           <br />
           <span className="text-[#7B3FBF]">партнёр</span> в сфере
-          <br />
-          государственного
           <br />
           <span className="text-[#C9A84C]">рекрутинга</span>
         </motion.h1>
@@ -81,9 +79,9 @@ export default function Hero() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.8 }}
-          className="text-lg md:text-xl text-[#F8FAFC]/60 max-w-2xl mx-auto mb-12 leading-relaxed"
+          className="text-base md:text-xl text-[#F8FAFC]/60 max-w-2xl mx-auto mb-8 leading-relaxed px-2"
         >
-          ООО «Братоуверие-СНБ» — официальный партнёр администрации и Правительства РФ.
+          ООО «Братоуверие-СНБ» — официальный партнёр Правительства РФ.
           Прямой доступ к государственным проектам. Постоянный поток вакансий.
         </motion.p>
 
@@ -92,17 +90,17 @@ export default function Hero() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 1.1 }}
-          className="flex flex-col sm:flex-row items-center justify-center gap-4"
+          className="flex flex-col sm:flex-row items-center justify-center gap-3"
         >
           <a
             href="#contacts"
-            className="px-10 py-4 rounded text-sm font-bold tracking-wide bg-[#7B3FBF] hover:bg-[#8B4FCF] text-white transition-all duration-300 shadow-[0_0_40px_rgba(123,63,191,0.4)] hover:shadow-[0_0_60px_rgba(123,63,191,0.6)]"
+            className="w-full sm:w-auto px-8 py-3.5 rounded text-sm font-bold tracking-wide bg-[#7B3FBF] hover:bg-[#8B4FCF] text-white transition-all duration-300 shadow-[0_0_40px_rgba(123,63,191,0.4)] hover:shadow-[0_0_60px_rgba(123,63,191,0.6)] text-center"
           >
             Начать сотрудничество
           </a>
           <a
             href="#projects"
-            className="px-10 py-4 rounded text-sm font-semibold tracking-wide border border-[#F8FAFC]/20 text-[#F8FAFC]/80 hover:text-[#F8FAFC] hover:border-[#F8FAFC]/40 transition-all duration-300"
+            className="w-full sm:w-auto px-8 py-3.5 rounded text-sm font-semibold tracking-wide border border-[#F8FAFC]/20 text-[#F8FAFC]/80 hover:text-[#F8FAFC] hover:border-[#F8FAFC]/40 transition-all duration-300 text-center"
           >
             Наши проекты
           </a>
@@ -113,16 +111,16 @@ export default function Hero() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 1, delay: 1.5 }}
-          className="mt-20 flex flex-wrap items-center justify-center gap-8 md:gap-16"
+          className="mt-12 grid grid-cols-3 gap-4 md:gap-16"
         >
           {[
-            { num: '10187', label: 'специалистов привлечено' },
-            { num: '30+', label: 'населённых пунктов' },
-            { num: '50+', label: 'крупных проектов' },
+            { num: '10 187', label: 'специалистов' },
+            { num: '30+', label: 'городов' },
+            { num: '50+', label: 'проектов' },
           ].map((s) => (
             <div key={s.label} className="text-center">
-              <div className="text-3xl md:text-4xl font-black text-[#C9A84C] tracking-[-0.03em]">{s.num}</div>
-              <div className="text-xs text-[#F8FAFC]/40 uppercase tracking-widest mt-1">{s.label}</div>
+              <div className="text-2xl md:text-4xl font-black text-[#C9A84C] tracking-[-0.03em]">{s.num}</div>
+              <div className="text-[10px] md:text-xs text-[#F8FAFC]/40 uppercase tracking-wider mt-1">{s.label}</div>
             </div>
           ))}
         </motion.div>
