@@ -162,8 +162,8 @@ export default function ContactSection() {
                     {
                       icon: Mail,
                       items: [
-                        { label: 'Email', value: 'contact@bratouverie.ru', href: 'mailto:contact@bratouverie.ru' },
-                        { label: 'Email', value: 'bratouverie@gmail.com', href: 'mailto:bratouverie@gmail.com' },
+                        { label: 'Email', value: 'partner@bratouverie.ru', href: 'mailto:partner@bratouverie.ru' },
+                        { label: 'Email', value: 'support@bratouverie.ru', href: 'mailto:support@bratouverie.ru' },
                       ]
                     },
                     {
