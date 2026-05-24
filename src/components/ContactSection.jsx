@@ -153,17 +153,17 @@ export default function ContactSection() {
                     {
                       icon: Phone,
                       items: [
-                        { label: 'Яков Евгеньевич (директор)', value: '+7 919 107-22-44', href: 'tel:+79191072244' },
-                        { label: 'Игорь Андреевич (подбор)', value: '+7 922 312-07-35', href: 'tel:+79223120735' },
-                        { label: 'Администрация', value: '+7 (4212) 51-59-30', href: 'tel:+74212515930' },
+                        { label: 'Яков Евгеньевич (директор)', value: '+7 950 282-46-45', href: 'tel:+79502824645' },
+                        { label: 'Игорь Андреевич (заместитель директора)', value: '+7 922 312-07-35', href: 'tel:+79223120735' },
+                        { label: 'Приемная', value: '+7 (4212) 51-59-30', href: 'tel:+74212515930' },
                         { label: 'Горячая линия', value: '+7 (499) 686-13-17', href: 'tel:+74996861317' },
                       ]
                     },
                     {
                       icon: Mail,
                       items: [
-                        { label: 'Email', value: 'partner@bratouverie.ru', href: 'mailto:partner@bratouverie.ru' },
-                        { label: 'Email', value: 'support@bratouverie.ru', href: 'mailto:support@bratouverie.ru' },
+                        { label: 'Email', value: 'partner@bratouverie-snb.ru', href: 'mailto:partner@bratouverie-snb.ru' },
+                        { label: 'Email', value: 'mikhliaev@bratouverie-snb.ru', href: 'mailto:mikhliaev@bratouverie-snb.ru' },
                       ]
                     },
                     {

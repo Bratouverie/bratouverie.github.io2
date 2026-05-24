@@ -30,17 +30,28 @@ export default function Footer() {
             <div>
               <div className="text-xs text-[#F8FAFC]/30 uppercase tracking-widest mb-4">Разделы</div>
               <div className="space-y-2">
-                {['О компании', 'Проекты', 'Услуги', 'Документы'].map((l) => (
-                  <a key={l} href={`#${l.toLowerCase().replace(' ', '')}`} className="block text-sm text-[#F8FAFC]/55 hover:text-[#F8FAFC] transition-colors">{l}</a>
+                {[
+                  { label: 'О компании', href: '#about' },
+                  { label: 'Проекты', href: '#projects' },
+                  { label: 'Услуги', href: '#services' },
+                  { label: 'Документы', href: '#documents' },
+                  { label: 'Команда', href: '#team' },
+                  { label: 'Контакты', href: '#contacts' },
+                  { label: 'Согласие на обработку ПД', href: '/privacy' },
+                ].map((l) => (
+                  <a key={l.href} href={l.href} className="block text-sm text-[#F8FAFC]/55 hover:text-[#F8FAFC] transition-colors">{l.label}</a>
                 ))}
               </div>
             </div>
             <div>
               <div className="text-xs text-[#F8FAFC]/30 uppercase tracking-widest mb-4">Контакты</div>
               <div className="space-y-2">
-                <a href="tel:+79191072244" className="block text-sm text-[#F8FAFC]/55 hover:text-[#C9A84C] transition-colors">+7 919 107-22-44</a>
-                <a href="mailto:contact@bratouverie.ru" className="block text-sm text-[#F8FAFC]/55 hover:text-[#C9A84C] transition-colors">contact@bratouverie.ru</a>
-                <a href="https://bratouverie.ru" className="block text-sm text-[#F8FAFC]/55 hover:text-[#C9A84C] transition-colors">bratouverie.ru</a>
+                <a href="tel:+79502824645" className="block text-sm text-[#F8FAFC]/55 hover:text-[#C9A84C] transition-colors">+7 950 282-46-45 (дир.)</a>
+                <a href="tel:+79223120735" className="block text-sm text-[#F8FAFC]/55 hover:text-[#C9A84C] transition-colors">+7 922 312-07-35 (зам.)</a>
+                <a href="tel:+74212515930" className="block text-sm text-[#F8FAFC]/55 hover:text-[#C9A84C] transition-colors">+7 (4212) 51-59-30 (приемная)</a>
+                <a href="tel:+74996861317" className="block text-sm text-[#F8FAFC]/55 hover:text-[#C9A84C] transition-colors">+7 (499) 686-13-17 (гор. линия)</a>
+                <a href="mailto:anufriev@bratouverie-snb.ru" className="block text-sm text-[#F8FAFC]/55 hover:text-[#C9A84C] transition-colors">anufriev@bratouverie-snb.ru</a>
+                <a href="mailto:mikhliaev@bratouverie-snb.ru" className="block text-sm text-[#F8FAFC]/55 hover:text-[#C9A84C] transition-colors">mikhliaev@bratouverie-snb.ru</a>
               </div>
             </div>
           </div>

@@ -40,12 +40,15 @@ export default function Nav() {
             alt="Bratouverie icon"
             className="w-9 h-9 object-contain"
           />
-          <img
-            src="https://media.base44.com/images/public/user_69f4a60c5f6a1719d380566c/aed774101_2_1.png"
-            alt="Bratouverie"
-            className="h-7 object-contain invert brightness-0 filter"
-            style={{ filter: 'invert(1) brightness(2)' }}
-          />
+          <div>
+            <img
+              src="https://media.base44.com/images/public/user_69f4a60c5f6a1719d380566c/aed774101_2_1.png"
+              alt="Bratouverie"
+              className="h-6 object-contain"
+              style={{ filter: 'invert(1) brightness(2)' }}
+            />
+            <div className="text-[9px] text-[#C9A84C]/70 tracking-[0.12em] uppercase font-semibold leading-tight mt-0.5">Группа компаний</div>
+          </div>
         </a>
 
         {/* Desktop links */}

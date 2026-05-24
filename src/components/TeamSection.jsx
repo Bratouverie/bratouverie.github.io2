@@ -8,21 +8,21 @@ const team = [
     lastName: 'Ануфриев',
     role: 'Генеральный директор',
     desc: 'Руководитель компании. Осуществляет общее руководство деятельностью ООО «Братоуверие-СНБ», обеспечивает реализацию государственных контрактов и развитие партнёрской сети.',
-    phone: '+7 919 107-22-44',
-    email: 'bratouverie@gmail.com',
+    phone: '+7 950 282-46-45',
+    email: 'anufriev@bratouverie-snb.ru',
     tags: ['Стратегия', 'Партнёрства', 'Госконтракты'],
-    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=80&fit=crop&crop=face',
+    image: 'https://media.base44.com/images/public/6a118622c856f058618fff8e/2cd95b20d_2.jpg',
     accentColor: '#C9A84C',
   },
   {
     name: 'Игорь Андреевич',
-    lastName: '',
-    role: 'Специалист по отбору',
+    lastName: 'Михляев',
+    role: 'Заместитель директора',
     desc: 'Руководит процессами подбора и отбора специалистов. Отвечает за коммуникацию с HR-партнёрами, координацию потоков кандидатов и соответствие требованиям заказчиков.',
     phone: '+7 922 312-07-35',
-    email: 'contact@bratouverie.ru',
+    email: 'mikhliaev@bratouverie-snb.ru',
     tags: ['HR-подбор', 'Партнёры', 'Кандидаты'],
-    image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&q=80&fit=crop&crop=face',
+    image: 'https://media.base44.com/images/public/6a118622c856f058618fff8e/f49c3fb33_1.jpg',
     accentColor: '#7B3FBF',
   },
 ];
@@ -136,7 +136,7 @@ export default function TeamSection() {
         <SectionReveal delay={0.3}>
           <div className="mt-12 grid sm:grid-cols-2 gap-4 max-w-4xl mx-auto">
             {[
-              { label: 'Администрация', phone: '+7 (4212) 51-59-30', desc: 'Общие вопросы' },
+              { label: 'Приемная', phone: '+7 (4212) 51-59-30', desc: 'Общие вопросы' },
               { label: 'Горячая линия', phone: '+7 (499) 686-13-17', desc: 'Экстренные обращения' },
             ].map((c) => (
               <div key={c.label} className="glass-card rounded-xl p-5 flex items-center gap-4">

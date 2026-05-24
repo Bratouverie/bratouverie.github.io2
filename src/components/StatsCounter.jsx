@@ -100,6 +100,16 @@ export default function StatsCounter() {
                 <span key={t} className="text-xs px-3 py-1.5 rounded border border-[rgba(201,168,76,0.3)] text-[#C9A84C]/80">{t}</span>
               ))}
             </div>
+            <div className="flex flex-wrap gap-3 mt-4">
+              <a href="https://vosstanovim-dnr.ru" target="_blank" rel="noopener noreferrer"
+                className="text-xs px-3 py-1.5 rounded border border-[rgba(123,63,191,0.4)] text-[#7B3FBF] hover:bg-[#7B3FBF]/10 transition-colors">
+                vosstanovim-dnr.ru ↗
+              </a>
+              <a href="https://vosstanovim-dnr.com" target="_blank" rel="noopener noreferrer"
+                className="text-xs px-3 py-1.5 rounded border border-[rgba(123,63,191,0.4)] text-[#7B3FBF] hover:bg-[#7B3FBF]/10 transition-colors">
+                vosstanovim-dnr.com ↗
+              </a>
+            </div>
           </motion.div>
 
           <motion.div

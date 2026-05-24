@@ -4,6 +4,7 @@ import AboutSection from '../components/AboutSection';
 import StatsCounter from '../components/StatsCounter';
 import ServicesSection from '../components/ServicesSection';
 import WhyUsSection from '../components/WhyUsSection';
+import NationalProjectsSection from '../components/NationalProjectsSection';
 import DocumentsSection from '../components/DocumentsSection';
 import TeamSection from '../components/TeamSection';
 import ContactSection from '../components/ContactSection';
@@ -18,6 +19,7 @@ export default function Home() {
       <StatsCounter />
       <ServicesSection />
       <WhyUsSection />
+      <NationalProjectsSection />
       <DocumentsSection />
       <TeamSection />
       <ContactSection />
