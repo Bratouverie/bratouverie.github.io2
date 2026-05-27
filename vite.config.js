@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import { fileURLToPath, URL } from 'node:url' // добавляем этот импорт для путей
 
 export default defineConfig({
-  base: '/BRO-SNB/',
+  base: './',
   plugins: [react()],
   resolve: {
     alias: {
