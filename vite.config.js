@@ -1,10 +1,15 @@
 import base44 from "@base44/vite-plugin"
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+import { resolve } from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
   base: '/BRO-SNB/',
+  build: {
+  outDir: 'dist',
+  assetsDir: 'assets',
+},
   logLevel: 'error', // Suppress warnings, only show errors
   plugins: [
     base44({
