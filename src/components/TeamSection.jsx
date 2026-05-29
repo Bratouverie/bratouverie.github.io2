@@ -11,7 +11,7 @@ const leadership = [
     phone: '+7 950 282-46-45',
     email: 'anufriev@bratouverie-snb.ru',
     tags: ['Стратегия', 'Партнёрства', 'Госконтракты'],
-    image: 'https://media.base44.com/images/public/6a118622c856f058618fff8e/2cd95b20d_2.jpg',
+    image: 'https://media.base44.com/images/public/6a118622c856f058618fff8e/4a580388e_358902809.jpg',
     accentColor: '#C9A84C',
   },
   {
