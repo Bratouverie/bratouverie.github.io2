@@ -24,8 +24,8 @@ export default function Home() {
       <NationalProjectsSection />
       <DocumentsSection />
       <TeamSection />
-      <AwardsSection />
       <OfficeGallery />
+      <AwardsSection />
       <ContactSection />
       <Footer />
     </div>
