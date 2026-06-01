@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SectionReveal from './SectionReveal';
-import { FileText, X, ExternalLink, Shield, Building, BookOpen } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { FileText, X, ExternalLink, Shield, Building, BookOpen, Lock } from 'lucide-react';
 
 const documents = [
   {
@@ -203,6 +204,39 @@ export default function DocumentsSection() {
             );
           })}
         </div>
+
+        {/* Partner documents */}
+        <SectionReveal delay={0.3}>
+          <div className="mt-14">
+            <div className="flex items-center gap-4 mb-6">
+              <span className="h-px flex-1 max-w-[40px] bg-[#7B3FBF]/40" />
+              <span className="text-xs font-semibold tracking-[0.2em] uppercase text-[#7B3FBF]">Для партнёров</span>
+              <span className="h-px flex-1 bg-[#7B3FBF]/15" />
+            </div>
+            <div className="grid sm:grid-cols-3 gap-5">
+              {[
+                { title: 'Коммерческое предложение', desc: 'Презентация для кадрового агентства о сотрудничестве в рамках Программы восстановления ДНР и ЛНР', href: '/presentation', color: '#7B3FBF' },
+                { title: 'Заявка на подбор сотрудников', desc: 'Программа массового подбора специалистов для участия в восстановлении инфраструктуры ЛНР и ДНР', href: '/application', color: '#C9A84C' },
+                { title: 'Договор с кадровым агентством', desc: 'Договор на оказание услуг по подбору персонала с приложениями (Техническое задание, акты, реестры)', href: '/contract', color: '#7B3FBF' },
+              ].map(doc => (
+                <Link key={doc.title} to={doc.href}
+                  className="glass-card rounded-xl p-6 group hover:border-[rgba(123,63,191,0.45)] transition-all duration-300 block">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-4 transition-colors"
+                    style={{ background: doc.color + '18' }}>
+                    <FileText size={18} style={{ color: doc.color }} />
+                  </div>
+                  <h3 className="text-sm font-bold text-[#F8FAFC] mb-2">{doc.title}</h3>
+                  <p className="text-xs text-[#F8FAFC]/45 leading-relaxed mb-4">{doc.desc}</p>
+                  <div className="flex items-center gap-1.5 text-xs font-semibold transition-colors"
+                    style={{ color: doc.color + '99' }}>
+                    <Lock size={11} />
+                    <span>Просмотреть / Скачать</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </SectionReveal>
       </div>
 
       <AnimatePresence>
