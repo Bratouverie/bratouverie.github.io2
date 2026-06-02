@@ -107,10 +107,10 @@ export default function Contract() {
       <div className="pt-24 pb-16 px-6 lg:px-10 max-w-7xl mx-auto">
         {/* Back button */}
         <div className="mb-8">
-          <Link to="/#documents"
+          <a href="/#documents"
             className="inline-flex items-center gap-2 text-sm text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-colors">
             <ArrowLeft size={16} /> Вернуться к разделу Документы
-          </Link>
+          </a>
         </div>
 
         <div className="mb-10">

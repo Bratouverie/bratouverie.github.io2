@@ -7,8 +7,8 @@ import { Link } from 'react-router-dom';
 
 const CORRECT_PASSWORD = 'SNB2026';
 
-// PDF открывается в новом окне
-const PDF_URL = 'https://media.base44.com/files/public/6a118622c856f058618fff8e/888108e06_.pdf';
+// HTML-файл заявки открывается в новом окне
+const PDF_URL = 'https://media.base44.com/files/public/6a118622c856f058618fff8e/a42c097fe_HTML.html';
 
 const specialists = [
   { category: 'Строители', count: '894', percent: '45%', detail: 'Каменщики, бетонщики, арматурщики, отделочники, кровельщики, монтажники' },
@@ -56,10 +56,10 @@ export default function Application() {
       <div className="pt-24 pb-16 px-6 lg:px-10 max-w-7xl mx-auto">
         {/* Back button */}
         <div className="mb-8">
-          <Link to="/#documents"
+          <a href="/#documents"
             className="inline-flex items-center gap-2 text-sm text-[#F8FAFC]/50 hover:text-[#C9A84C] transition-colors">
             <ArrowLeft size={16} /> Вернуться к разделу Документы
-          </Link>
+          </a>
         </div>
 
         <div className="mb-10">
@@ -123,7 +123,7 @@ export default function Application() {
                     ))}
                   </div>
                   <div className="grid md:grid-cols-3 gap-4">
-                    {[['Заказчик', 'Администрация г. Хабаровска'], ['Генеральный подрядчик', 'ООО «Братоуверие-СНБ»'], ['Цель', 'Оперативное формирование высокопрофессиональной команды']].map(([k,v]) => (
+                    {[['Заказчик', 'Правительство Российской Федерации'], ['Генеральный подрядчик', 'ООО «Братоуверие-СНБ»'], ['Цель', 'Оперативное формирование высокопрофессиональной команды']].map(([k,v]) => (
                       <div key={k} className="glass-card-gold rounded-xl p-4"><div className="text-xs text-[#C9A84C] font-bold uppercase tracking-wider mb-1">{k}</div><div className="text-sm text-[#F8FAFC]/80">{v}</div></div>
                     ))}
                   </div>
