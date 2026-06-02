@@ -8,7 +8,8 @@ const leadership = [
     lastName: 'Ануфриев',
     role: 'Генеральный директор',
     desc: 'Руководитель компании. Осуществляет общее руководство деятельностью ООО «Братоуверие-СНБ», обеспечивает реализацию государственных контрактов и развитие партнёрской сети.',
-    phone: '+7 950 282-46-45',
+    phone: '+7 (4212) 51-59-30 (доб. 701)',
+    tel: '+74212515930',
     email: 'anufriev@bratouverie-snb.ru',
     tags: ['Стратегия', 'Партнёрства', 'Госконтракты'],
     image: 'https://media.base44.com/images/public/6a118622c856f058618fff8e/4a580388e_358902809.jpg',
@@ -19,7 +20,8 @@ const leadership = [
     lastName: 'Михляев',
     role: 'Заместитель директора',
     desc: 'Руководит процессами подбора и отбора специалистов. Отвечает за коммуникацию с HR-партнёрами, координацию потоков кандидатов и соответствие требованиям заказчиков.',
-    phone: '+7 922 312-07-35',
+    phone: '+7 (4212) 51-59-30 (доб. 702)',
+    tel: '+74212515930',
     email: 'mikhliaev@bratouverie-snb.ru',
     tags: ['HR-подбор', 'Партнёры', 'Кандидаты'],
     image: 'https://media.base44.com/images/public/6a118622c856f058618fff8e/f49c3fb33_1.jpg',
@@ -217,7 +219,7 @@ export default function TeamSection() {
                   </div>
                   <div className="flex gap-3">
                     <a
-                      href={`tel:${member.phone}`}
+                      href={`tel:${member.tel || member.phone}`}
                       className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-semibold transition-all duration-300"
                       style={{ background: `${member.accentColor}12`, border: `1px solid ${member.accentColor}30`, color: member.accentColor }}
                     >

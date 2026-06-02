@@ -153,7 +153,7 @@ export default function ContactSection() {
                     {
                       icon: Phone,
                       items: [
-                        { label: 'Приёмная (доб. 701, 702)', value: '+7 (4212) 51-59-30', href: 'tel:+74212515930' },
+                        { label: 'Приёмная', value: '+7 (4212) 51-59-30', href: 'tel:+74212515930' },
                         { label: 'Горячая линия', value: '+7 (499) 686-13-17', href: 'tel:+74996861317' },
                       ]
                     },
@@ -162,6 +162,7 @@ export default function ContactSection() {
                       items: [
                         { label: 'Email', value: 'partner@bratouverie-snb.ru', href: 'mailto:partner@bratouverie-snb.ru' },
                         { label: 'Email', value: 'mikhliaev@bratouverie-snb.ru', href: 'mailto:mikhliaev@bratouverie-snb.ru' },
+
                       ]
                     },
                     {

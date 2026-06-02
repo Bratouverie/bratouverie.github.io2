@@ -116,7 +116,7 @@ export default function Hero() {
           {[
             { num: '10 187', label: 'специалистов' },
             { num: '30+', label: 'городов' },
-            { num: '50+', label: 'проектов' },
+            { num: '10+', label: 'проектов' },
           ].map((s) => (
             <div key={s.label} className="text-center">
               <div className="text-2xl md:text-4xl font-black text-[#C9A84C] tracking-[-0.03em]">{s.num}</div>

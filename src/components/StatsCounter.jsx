@@ -96,7 +96,7 @@ export default function StatsCounter() {
               в соответствии с Постановлением Правительства РФ.
             </p>
             <div className="flex flex-wrap gap-3">
-              {['Старт набора: 25.05.2026', 'Период: май–июнь', 'Объекты: июль 2026'].map((t) => (
+              {['Старт набора: 01.06.2026', 'Период: июнь–июль', 'Отправка: июль 2026'].map((t) => (
                 <span key={t} className="text-xs px-3 py-1.5 rounded border border-[rgba(201,168,76,0.3)] text-[#C9A84C]/80">{t}</span>
               ))}
             </div>
