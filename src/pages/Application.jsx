@@ -7,8 +7,8 @@ import { Link } from 'react-router-dom';
 
 const CORRECT_PASSWORD = 'SNB2026';
 
-// HTML-файл заявки открывается в новом окне
-const PDF_URL = 'https://media.base44.com/files/public/6a118622c856f058618fff8e/a42c097fe_HTML.html';
+// PDF заявки открывается в новом окне
+const PDF_URL = 'https://media.base44.com/files/public/6a118622c856f058618fff8e/7907b3ebd_.pdf';
 
 const specialists = [
   { category: 'Строители', count: '894', percent: '45%', detail: 'Каменщики, бетонщики, арматурщики, отделочники, кровельщики, монтажники' },

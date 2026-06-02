@@ -8,7 +8,7 @@ import { Link } from 'react-router-dom';
 const CORRECT_PASSWORD = 'SNB2026';
 
 // PDF коммерческого предложения (открывается в новом окне)
-const PDF_URL = 'https://media.base44.com/files/public/6a118622c856f058618fff8e/596ee7e6f_-.pdf';
+const PDF_URL = 'https://media.base44.com/files/public/6a118622c856f058618fff8e/939c3e6c4_-.pdf';
 
 const SLIDES = [
   {
