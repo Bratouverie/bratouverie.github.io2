@@ -1,10 +1,14 @@
 import { useState } from 'react';
 import Nav from '../components/Nav';
 import Footer from '../components/Footer';
-import { Lock, Download, Eye, FileText, Shield, ChevronRight } from 'lucide-react';
+import { Lock, Download, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Link } from 'react-router-dom';
 
 const CORRECT_PASSWORD = 'SNB2026';
+
+// PDF URL для коммерческого предложения (открывается в новом окне)
+const PDF_URL = 'https://media.base44.com/files/public/6a118622c856f058618fff8e/79cb2428f_.pdf';
 
 const SLIDES = [
   {
@@ -280,9 +284,8 @@ const SLIDES = [
           <div className="glass-card-gold rounded-xl p-6">
             <h3 className="text-[#C9A84C] font-bold mb-4">Контактная информация</h3>
             {[
-              ['Яков Евгеньевич (директор)', '+7 950 282-46-45'],
-              ['Игорь Андреевич (зам.)', '+7 922 312-07-35'],
-              ['Приёмная', '+7 (4212) 51-59-30'],
+              ['Приёмная (доб. 701, 702)', '+7 (4212) 51-59-30'],
+              ['Горячая линия', '+7 (499) 686-13-17'],
               ['Email', 'partner@bratouverie-snb.ru'],
               ['Адрес', 'г. Хабаровск, ул. Карла Маркса, 66'],
             ].map(([k,v]) => (
@@ -292,7 +295,10 @@ const SLIDES = [
           <div className="glass-card rounded-xl p-6 text-center">
             <div className="text-2xl font-black text-[#C9A84C] mb-2">Готовы к сотрудничеству!</div>
             <p className="text-sm text-[#F8FAFC]/55 mb-4">Свяжитесь с нами сегодня для обсуждения всех деталей проекта</p>
-            <a href="/#contacts" className="inline-block px-6 py-3 rounded-lg bg-[#7B3FBF] text-white text-sm font-bold hover:bg-[#8B4FCF] transition-colors">Начать сотрудничество</a>
+            <a href="/#contacts"
+              className="inline-block px-6 py-3 rounded-lg bg-[#7B3FBF] text-white text-sm font-bold hover:bg-[#8B4FCF] transition-colors">
+              Начать сотрудничество
+            </a>
           </div>
         </div>
       </div>
@@ -316,10 +322,22 @@ export default function Presentation() {
     }
   };
 
+  const handleOpenPdf = () => {
+    window.open(PDF_URL, '_blank');
+  };
+
   return (
     <div className="min-h-screen bg-[#05070A] font-inter">
       <Nav />
       <div className="pt-24 pb-16 px-6 lg:px-10 max-w-7xl mx-auto">
+        {/* Back button */}
+        <div className="mb-8">
+          <Link to="/#documents"
+            className="inline-flex items-center gap-2 text-sm text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-colors">
+            <ArrowLeft size={16} /> Вернуться к разделу Документы
+          </Link>
+        </div>
+
         <div className="mb-10">
           <div className="flex items-center gap-4 mb-4">
             <span className="h-px flex-1 max-w-[60px] bg-[#7B3FBF]/50" />
@@ -352,11 +370,11 @@ export default function Presentation() {
           ) : (
             <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               {/* Download button */}
-              <div className="flex justify-end mb-6">
-                <a href="https://media.base44.com/files/public/6a118622c856f058618fff8e/79cb2428f_.pdf" download
+              <div className="flex justify-end mb-6 gap-3">
+                <button onClick={handleOpenPdf}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#C9A84C]/10 border border-[#C9A84C]/30 text-[#C9A84C] text-sm font-bold hover:bg-[#C9A84C]/20 transition-colors">
                   <Download size={16} /> Скачать PDF
-                </a>
+                </button>
               </div>
 
               {/* Slide indicator */}

@@ -18,8 +18,8 @@ function AnimatedNumber({ value, suffix = '' }) {
 const stats = [
   { value: 10187, suffix: '', label: 'СПЕЦИАЛИСТОВ ПРИВЛЕЧЕНО', sub: 'подтверждено документально' },
   { value: 30, suffix: '+', label: 'НАСЕЛЁННЫХ ПУНКТОВ', sub: 'охвачено в ДНР и ЛНР' },
-  { value: 50, suffix: '+', label: 'КРУПНЫХ ПРОЕКТОВ', sub: 'успешно реализовано' },
-  { value: 30, suffix: '+', label: 'КАТЕГОРИЙ СПЕЦИАЛИСТОВ', sub: 'строители, водители, инженеры...' },
+  { value: 10, suffix: '+', label: 'КРУПНЫХ ПРОЕКТОВ', sub: 'успешно реализовано' },
+  { value: 20, suffix: '+', label: 'КАТЕГОРИЙ СПЕЦИАЛИСТОВ', sub: 'строители, водители, инженеры...' },
 ];
 
 export default function StatsCounter() {

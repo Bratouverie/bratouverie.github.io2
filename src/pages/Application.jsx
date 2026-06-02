@@ -1,10 +1,14 @@
 import { useState } from 'react';
 import Nav from '../components/Nav';
 import Footer from '../components/Footer';
-import { Lock, Download, FileText, CheckCircle } from 'lucide-react';
+import { Lock, Download, CheckCircle, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Link } from 'react-router-dom';
 
 const CORRECT_PASSWORD = 'SNB2026';
+
+// PDF открывается в новом окне
+const PDF_URL = 'https://media.base44.com/files/public/6a118622c856f058618fff8e/888108e06_.pdf';
 
 const specialists = [
   { category: 'Строители', count: '894', percent: '45%', detail: 'Каменщики, бетонщики, арматурщики, отделочники, кровельщики, монтажники' },
@@ -42,10 +46,22 @@ export default function Application() {
     }
   };
 
+  const handleOpenPdf = () => {
+    window.open(PDF_URL, '_blank');
+  };
+
   return (
     <div className="min-h-screen bg-[#05070A] font-inter">
       <Nav />
       <div className="pt-24 pb-16 px-6 lg:px-10 max-w-7xl mx-auto">
+        {/* Back button */}
+        <div className="mb-8">
+          <Link to="/#documents"
+            className="inline-flex items-center gap-2 text-sm text-[#F8FAFC]/50 hover:text-[#C9A84C] transition-colors">
+            <ArrowLeft size={16} /> Вернуться к разделу Документы
+          </Link>
+        </div>
+
         <div className="mb-10">
           <div className="flex items-center gap-4 mb-4">
             <span className="h-px flex-1 max-w-[60px] bg-[#C9A84C]/40" />
@@ -79,10 +95,10 @@ export default function Application() {
             <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
               {/* Download */}
               <div className="flex justify-end">
-                <a href="https://media.base44.com/files/public/6a118622c856f058618fff8e/888108e06_.pdf" download
+                <button onClick={handleOpenPdf}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#C9A84C]/10 border border-[#C9A84C]/30 text-[#C9A84C] text-sm font-bold hover:bg-[#C9A84C]/20 transition-colors">
                   <Download size={16} /> Скачать PDF
-                </a>
+                </button>
               </div>
 
               {/* Header card */}

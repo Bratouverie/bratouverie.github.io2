@@ -66,11 +66,11 @@ export default function ContactSection() {
                   Мы получили вашу заявку и свяжемся с вами в ближайшее время. Также вы можете позвонить нам напрямую.
                 </p>
                 <a
-                  href="tel:+79191072244"
+                  href="tel:+74212515930"
                   className="inline-flex items-center gap-2 px-8 py-3 rounded-lg bg-[#7B3FBF] hover:bg-[#8B4FCF] text-white text-sm font-bold transition-all"
                 >
                   <Phone size={16} />
-                  +7 919 107-22-44
+                  +7 (4212) 51-59-30
                 </a>
               </motion.div>
             ) : (
@@ -153,9 +153,7 @@ export default function ContactSection() {
                     {
                       icon: Phone,
                       items: [
-                        { label: 'Яков Евгеньевич (директор)', value: '+7 950 282-46-45', href: 'tel:+79502824645' },
-                        { label: 'Игорь Андреевич (заместитель директора)', value: '+7 922 312-07-35', href: 'tel:+79223120735' },
-                        { label: 'Приемная', value: '+7 (4212) 51-59-30', href: 'tel:+74212515930' },
+                        { label: 'Приёмная (доб. 701, 702)', value: '+7 (4212) 51-59-30', href: 'tel:+74212515930' },
                         { label: 'Горячая линия', value: '+7 (499) 686-13-17', href: 'tel:+74996861317' },
                       ]
                     },

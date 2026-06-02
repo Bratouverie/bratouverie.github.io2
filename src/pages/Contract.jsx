@@ -1,10 +1,14 @@
 import { useState } from 'react';
 import Nav from '../components/Nav';
 import Footer from '../components/Footer';
-import { Lock, Download, FileText } from 'lucide-react';
+import { Lock, Download, FileText, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Link } from 'react-router-dom';
 
 const CORRECT_PASSWORD = 'SNB2026';
+
+// PDF прикреплённый от пользователя
+const PDF_URL = 'https://media.base44.com/files/public/6a118622c856f058618fff8e/c93ad0002_.pdf';
 
 const contractSections = [
   {
@@ -93,10 +97,22 @@ export default function Contract() {
     }
   };
 
+  const handleOpenPdf = () => {
+    window.open(PDF_URL, '_blank');
+  };
+
   return (
     <div className="min-h-screen bg-[#05070A] font-inter">
       <Nav />
       <div className="pt-24 pb-16 px-6 lg:px-10 max-w-7xl mx-auto">
+        {/* Back button */}
+        <div className="mb-8">
+          <Link to="/#documents"
+            className="inline-flex items-center gap-2 text-sm text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-colors">
+            <ArrowLeft size={16} /> Вернуться к разделу Документы
+          </Link>
+        </div>
+
         <div className="mb-10">
           <div className="flex items-center gap-4 mb-4">
             <span className="h-px flex-1 max-w-[60px] bg-[#7B3FBF]/50" />
@@ -130,10 +146,10 @@ export default function Contract() {
             <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
               {/* Download */}
               <div className="flex justify-end">
-                <a href="https://media.base44.com/files/public/6a118622c856f058618fff8e/683208fc9_.pdf" download
+                <button onClick={handleOpenPdf}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#7B3FBF]/10 border border-[#7B3FBF]/30 text-[#7B3FBF] text-sm font-bold hover:bg-[#7B3FBF]/20 transition-colors">
                   <Download size={16} /> Скачать PDF
-                </a>
+                </button>
               </div>
 
               {/* Header */}
@@ -163,6 +179,7 @@ export default function Contract() {
                         <div><span className="text-[#F8FAFC]/40">Р/с: </span><span className="text-[#F8FAFC]/80 font-mono text-xs">40702810820110001074</span></div>
                         <div><span className="text-[#F8FAFC]/40">Банк: </span><span className="text-[#F8FAFC]/80">АО «Альфа-Банк», Хабаровск</span></div>
                         <div><span className="text-[#F8FAFC]/40">БИК: </span><span className="text-[#F8FAFC]/80">040813770</span></div>
+                        <div><span className="text-[#F8FAFC]/40">Телефон: </span><span className="text-[#F8FAFC]/80">+7 (4212) 51-59-30 (приёмная, доб. 701, 702)</span></div>
                       </div>
                     </div>
                     <div className="glass-card rounded-xl p-5">
