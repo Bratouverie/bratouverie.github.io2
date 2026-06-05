@@ -37,6 +37,7 @@ export default function Footer() {
                   { label: 'Документы', href: '#documents' },
                   { label: 'Команда', href: '#team' },
                   { label: 'Контакты', href: '#contacts' },
+                  { label: 'Блог', href: '/blog' },
                   { label: 'Согласие на обработку ПД', href: '/privacy' },
                 ].map((l) => (
                   <a key={l.href} href={l.href} className="block text-sm text-[#F8FAFC]/55 hover:text-[#F8FAFC] transition-colors">{l.label}</a>

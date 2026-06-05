@@ -11,6 +11,8 @@ import Privacy from './pages/Privacy';
 import Presentation from './pages/Presentation';
 import Application from './pages/Application';
 import Contract from './pages/Contract';
+import Blog from './pages/Blog';
+import BlogPost from './pages/BlogPost';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -44,6 +46,8 @@ const AuthenticatedApp = () => {
       <Route path="/presentation" element={<Presentation />} />
       <Route path="/application" element={<Application />} />
       <Route path="/contract" element={<Contract />} />
+      <Route path="/blog" element={<Blog />} />
+      <Route path="/blog/:slug" element={<BlogPost />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

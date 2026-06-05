@@ -8,6 +8,7 @@ const links = [
   { label: 'Услуги', href: '#services' },
   { label: 'Документы', href: '#documents' },
   { label: 'Команда', href: '#team' },
+  { label: 'Блог', href: '/blog' },
   { label: 'Контакты', href: '#contacts' },
 ];
 

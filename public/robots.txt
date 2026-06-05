@@ -1,0 +1,17 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+
+Sitemap: https://bratouverie-snb.ru/sitemap.xml
+
+# Yandex
+User-agent: Yandex
+Allow: /
+Crawl-delay: 2
+Sitemap: https://bratouverie-snb.ru/sitemap.xml
+
+# Google
+User-agent: Googlebot
+Allow: /
+Sitemap: https://bratouverie-snb.ru/sitemap.xml
