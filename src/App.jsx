@@ -13,6 +13,8 @@ import Application from './pages/Application';
 import Contract from './pages/Contract';
 import Blog from './pages/Blog';
 import BlogPost from './pages/BlogPost';
+import Agencies from './pages/admin/Agencies';
+import Candidates from './pages/admin/Candidates';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -48,6 +50,8 @@ const AuthenticatedApp = () => {
       <Route path="/contract" element={<Contract />} />
       <Route path="/blog" element={<Blog />} />
       <Route path="/blog/:slug" element={<BlogPost />} />
+      <Route path="/admin/agencies" element={<Agencies />} />
+      <Route path="/admin/candidates" element={<Candidates />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
