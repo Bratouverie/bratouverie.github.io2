@@ -6,6 +6,7 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 // Add page imports here
+import Login from './pages/Login';
 import Home from './pages/Home';
 import Privacy from './pages/Privacy';
 import Presentation from './pages/Presentation';
@@ -33,8 +34,10 @@ const AuthenticatedApp = () => {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     } else if (authError.type === 'auth_required') {
-      // Redirect to login automatically
-      navigateToLogin();
+      // Redirect to our custom login page
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
       return null;
     }
   }
@@ -43,6 +46,7 @@ const AuthenticatedApp = () => {
   return (
     <Routes>
       {/* Add your page Route elements here */}
+      <Route path="/login" element={<Login />} />
       <Route path="/" element={<Home />} />
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/presentation" element={<Presentation />} />

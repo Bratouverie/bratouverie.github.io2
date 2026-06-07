@@ -1,11 +1,18 @@
 import { useState } from 'react';
-import { X, Upload } from 'lucide-react';
+import { X, Upload, Send, Check } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
 const STATUSES = ['Рассматриваем', 'Переговоры', 'Согласен', 'Заключили договор'];
 const CALL_TYPES = ['Zoom', 'Телефон', 'Яндекс Мост'];
 
+function generatePassword() {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#';
+  return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
+
 export default function AgencyModal({ agency, onSave, onClose }) {
+  const [inviteSent, setInviteSent] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const [form, setForm] = useState({
     name: agency?.name || '',
     city: agency?.city || '',
@@ -24,6 +31,21 @@ export default function AgencyModal({ agency, onSave, onClose }) {
   const [uploading, setUploading] = useState(false);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleInvite = async () => {
+    const email = form.manager_email;
+    if (!email) { alert('Введите email менеджера'); return; }
+    setInviting(true);
+    const password = generatePassword();
+    try {
+      await base44.users.inviteUser(email, 'user');
+      await base44.functions.invoke('sendInvite', { email, agencyName: form.name, password });
+      setInviteSent(true);
+    } catch (err) {
+      alert('Ошибка отправки приглашения: ' + err.message);
+    }
+    setInviting(false);
+  };
 
   const handleContractUpload = async (e) => {
     const file = e.target.files[0];
@@ -63,9 +85,21 @@ export default function AgencyModal({ agency, onSave, onClose }) {
               <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Телефон</label>
               <input className={inp} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+7 (___) ___-__-__" />
             </div>
-            <div>
-              <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Email менеджера</label>
-              <input className={inp} type="email" value={form.manager_email} onChange={e => set('manager_email', e.target.value)} placeholder="manager@example.ru" />
+            <div className="sm:col-span-2">
+              <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Email менеджера агентства</label>
+              <div className="flex gap-2">
+                <input className={inp + ' flex-1'} type="email" value={form.manager_email} onChange={e => { set('manager_email', e.target.value); setInviteSent(false); }} placeholder="manager@example.ru" />
+                <button
+                  type="button"
+                  onClick={handleInvite}
+                  disabled={inviting || !form.manager_email}
+                  className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${inviteSent ? 'bg-green-500/20 border border-green-500/30 text-green-400' : 'bg-[#7B3FBF]/15 border border-[rgba(123,63,191,0.3)] text-[#7B3FBF] hover:bg-[#7B3FBF]/25'} disabled:opacity-50`}
+                >
+                  {inviting ? <div className="w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" /> : inviteSent ? <Check size={13}/> : <Send size={13}/>}
+                  {inviteSent ? 'Отправлено' : 'Пригласить'}
+                </button>
+              </div>
+              <p className="text-xs text-[#F8FAFC]/25 mt-1">Менеджер получит письмо с логином и паролем для входа</p>
             </div>
             <div>
               <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Статус взаимодействия</label>
