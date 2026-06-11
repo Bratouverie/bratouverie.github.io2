@@ -1,21 +1,33 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Download, Search, Filter, Upload, Eye, Trash2, Edit2, X, FileText, ChevronDown } from 'lucide-react';
+import { Plus, Download, Search, Trash2, Edit2, X, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw } from 'lucide-react';
 import CandidateModal from '../../components/admin/CandidateModal';
 
 const POSITIONS = ['Разнорабочий','Строитель','Водитель B','Водитель C','Водитель CE','Водитель D','Автослесарь','Инженер связи','Оператор БПЛА','Взрывотехник','Медицинский работник','Охранник'];
-const SB_COLORS = { 'Не проверялся':'text-[#F8FAFC]/40', 'Согласован':'text-green-400', 'Не согласован':'text-red-400' };
+const SB_COLORS  = { 'Не проверялся':'text-[#F8FAFC]/40', 'Согласован':'text-green-400', 'Не согласован':'text-red-400' };
 const MED_COLORS = { 'Не проверялся':'text-[#F8FAFC]/40', 'Прошёл':'text-green-400', 'Не прошёл':'text-red-400' };
+const PAY_COLORS = { 'Готовится к отправке':'text-green-400', 'Отказался от отправки':'text-red-400/70' };
+
+function Tooltip({ text, children }) {
+  return (
+    <div className="relative group/tip inline-flex items-center">
+      {children}
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded bg-[#0D1B3E] border border-[rgba(123,63,191,0.3)] text-xs text-[#F8FAFC]/80 whitespace-nowrap opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity z-50">
+        {text}
+      </div>
+    </div>
+  );
+}
 
 export default function Candidates() {
   const [candidates, setCandidates] = useState([]);
-  const [agencies, setAgencies] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [modalOpen, setModalOpen] = useState(false);
+  const [agencies, setAgencies]     = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [search, setSearch]         = useState('');
+  const [modalOpen, setModalOpen]   = useState(false);
   const [editCandidate, setEditCandidate] = useState(null);
-  const [filters, setFilters] = useState({ agency: '', position: '', citizenship: '', sb_check: '', medical_check: '' });
+  const [filters, setFilters] = useState({ agency: '', position: '', sb_check: '', medical_check: '' });
   const [searchParams] = useSearchParams();
 
   const load = async () => {
@@ -43,17 +55,33 @@ export default function Candidates() {
     load();
   };
 
+  // При удалении — пересчитываем candidates_count у агентства
   const handleDelete = async (id) => {
     if (!confirm('Удалить кандидата?')) return;
+    const cand = candidates.find(c => c.id === id);
     await base44.entities.Candidate.delete(id);
+    if (cand?.agency_id) {
+      const remaining = candidates.filter(c => c.id !== id && c.agency_id === cand.agency_id);
+      await base44.entities.Agency.update(cand.agency_id, { candidates_count: remaining.length });
+    }
+    load();
+  };
+
+  const recalcAll = async () => {
+    const all = await base44.entities.Candidate.list('-created_date', 1000);
+    const agList = await base44.entities.Agency.list('-created_date', 200);
+    for (const ag of agList) {
+      const count = all.filter(c => c.agency_id === ag.id).length;
+      await base44.entities.Agency.update(ag.id, { candidates_count: count });
+    }
     load();
   };
 
   const exportCSV = () => {
-    const headers = ['ФИО','Должность','Агентство','Гражданство','Город','Дата рождения','Состояние здоровья','Проверка СБ','Медкомиссия','Основание выплаты','Выплачено','Дата прибытия','Комментарий'];
+    const headers = ['ФИО','Должность','Агентство','Город','Пункт сбора','Дата рождения','Проверка СБ','Медкомиссия','Основание выплаты','Выплачено','Дата прибытия','Комментарий'];
     const rows = filtered.map(c => [
-      c.full_name, c.position, c.agency_name, c.citizenship, c.city,
-      c.birth_date, c.health_status, c.sb_check, c.medical_check,
+      c.full_name, c.position, c.agency_name, c.city, c.assembly_point,
+      c.birth_date, c.sb_check, c.medical_check,
       c.payment_basis, c.payment_made, c.arrival_date, c.comment
     ]);
     const csv = [headers, ...rows].map(r => r.map(v => `"${v || ''}"`).join(',')).join('\n');
@@ -66,15 +94,13 @@ export default function Candidates() {
     const q = search.toLowerCase();
     const matchSearch = !q || c.full_name?.toLowerCase().includes(q) || c.position?.toLowerCase().includes(q) || c.city?.toLowerCase().includes(q);
     const matchAgency = !filters.agency || c.agency_id === filters.agency;
-    const matchPos = !filters.position || c.position === filters.position;
-    const matchCit = !filters.citizenship || c.citizenship?.toLowerCase().includes(filters.citizenship.toLowerCase());
-    const matchSB = !filters.sb_check || c.sb_check === filters.sb_check;
-    const matchMed = !filters.medical_check || c.medical_check === filters.medical_check;
-    return matchSearch && matchAgency && matchPos && matchCit && matchSB && matchMed;
+    const matchPos    = !filters.position || c.position === filters.position;
+    const matchSB     = !filters.sb_check || c.sb_check === filters.sb_check;
+    const matchMed    = !filters.medical_check || c.medical_check === filters.medical_check;
+    return matchSearch && matchAgency && matchPos && matchSB && matchMed;
   });
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
-
   const inp = "px-3 py-2 bg-[rgba(255,255,255,0.04)] border border-[rgba(123,63,191,0.2)] rounded-lg text-sm text-[#F8FAFC] focus:outline-none focus:border-[#7B3FBF]";
 
   return (
@@ -90,10 +116,13 @@ export default function Candidates() {
             <Link to="/admin/agencies" className="text-sm text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-colors">База агентств</Link>
             <span className="text-[rgba(123,63,191,0.4)]">/</span>
             <h1 className="text-sm font-bold text-[#F8FAFC]">База кандидатов</h1>
-            <span className="text-[rgba(123,63,191,0.4)]">/</span>
-            <Link to="/admin/users" className="text-sm text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-colors">Пользователи</Link>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Tooltip text="Пересчитать всю статистику">
+              <button onClick={recalcAll} className="p-2 rounded-lg border border-[rgba(123,63,191,0.2)] text-[#F8FAFC]/50 hover:text-[#7B3FBF] hover:border-[#7B3FBF]/40 transition-all">
+                <RefreshCw size={14} />
+              </button>
+            </Tooltip>
             <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 text-xs rounded border border-[rgba(201,168,76,0.3)] text-[#C9A84C] hover:bg-[#C9A84C]/10 transition-all">
               <Download size={14} /> Экспорт CSV
             </button>
@@ -112,8 +141,8 @@ export default function Candidates() {
             { label: 'Всего кандидатов', value: candidates.length },
             { label: 'Согласованы СБ', value: candidates.filter(c => c.sb_check === 'Согласован').length },
             { label: 'Прошли медкомиссию', value: candidates.filter(c => c.medical_check === 'Прошёл').length },
-            { label: 'Готовятся к отправке', value: candidates.filter(c => c.payment_basis === 'Готовится к отправке').length },
-            { label: 'Выплачено (100 тыс.)', value: candidates.filter(c => c.payment_made === 'Да').length },
+            { label: 'К отправке', value: candidates.filter(c => c.payment_basis === 'Готовится к отправке').length },
+            { label: 'Выплачено', value: candidates.filter(c => c.payment_made === 'Да').length },
           ].map(s => (
             <div key={s.label} className="glass-card rounded-xl p-4">
               <div className="text-2xl font-black text-[#7B3FBF]">{s.value}</div>
@@ -147,7 +176,7 @@ export default function Candidates() {
             {['Не проверялся','Прошёл','Не прошёл'].map(s => <option key={s} value={s}>{s}</option>)}
           </select>
           {Object.values(filters).some(Boolean) && (
-            <button onClick={() => setFilters({ agency:'', position:'', citizenship:'', sb_check:'', medical_check:'' })}
+            <button onClick={() => setFilters({ agency:'', position:'', sb_check:'', medical_check:'' })}
               className="flex items-center gap-1 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 rounded-lg transition-all">
               <X size={12} /> Сбросить
             </button>
@@ -165,9 +194,44 @@ export default function Candidates() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[rgba(123,63,191,0.15)]">
-                    {['ФИО','Должность','Агентство','Гражданство','СБ','Медкомиссия','Выплата','Дата прибытия','Действия'].map(h => (
-                      <th key={h} className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                    ))}
+                    <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider">ФИО / Агентство</th>
+                    <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider whitespace-nowrap">Должность</th>
+                    <th className="px-4 py-3">
+                      <Tooltip text="Город проживания / Пункт сбора">
+                        <MapPin size={13} className="text-[#F8FAFC]/35" />
+                      </Tooltip>
+                    </th>
+                    <th className="px-4 py-3">
+                      <Tooltip text="Проверка СБ">
+                        <Shield size={13} className="text-[#F8FAFC]/35" />
+                      </Tooltip>
+                    </th>
+                    <th className="px-4 py-3">
+                      <Tooltip text="Медкомиссия">
+                        <Stethoscope size={13} className="text-[#F8FAFC]/35" />
+                      </Tooltip>
+                    </th>
+                    <th className="px-4 py-3">
+                      <Tooltip text="Дата прибытия">
+                        <CalendarDays size={13} className="text-[#F8FAFC]/35" />
+                      </Tooltip>
+                    </th>
+                    <th className="px-4 py-3">
+                      <Tooltip text="Основание для выплаты">
+                        <Banknote size={13} className="text-[#F8FAFC]/35" />
+                      </Tooltip>
+                    </th>
+                    <th className="px-4 py-3">
+                      <Tooltip text="Выплачено">
+                        <CheckCircle size={13} className="text-[#F8FAFC]/35" />
+                      </Tooltip>
+                    </th>
+                    <th className="px-4 py-3">
+                      <Tooltip text="Комментарий">
+                        <MessageSquare size={13} className="text-[#F8FAFC]/35" />
+                      </Tooltip>
+                    </th>
+                    <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider">Действия</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -175,32 +239,42 @@ export default function Candidates() {
                     <tr key={c.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(123,63,191,0.06)] transition-colors">
                       <td className="px-4 py-3">
                         <div className="font-bold text-[#F8FAFC]">{c.full_name}</div>
-                        {c.city && <div className="text-xs text-[#F8FAFC]/35">{c.city}</div>}
+                        <div className="text-xs text-[#F8FAFC]/35">{c.agency_name || '—'}</div>
                       </td>
                       <td className="px-4 py-3 text-[#F8FAFC]/60 text-xs whitespace-nowrap">{c.position || '—'}</td>
-                      <td className="px-4 py-3 text-[#F8FAFC]/55 text-xs">{c.agency_name || '—'}</td>
-                      <td className="px-4 py-3 text-[#F8FAFC]/55 text-xs">{c.citizenship || '—'}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-medium ${SB_COLORS[c.sb_check] || 'text-[#F8FAFC]/40'}`}>{c.sb_check || '—'}</span>
+                      <td className="px-4 py-3 text-xs text-[#F8FAFC]/55">
+                        {c.city && <div>{c.city}</div>}
+                        {c.assembly_point && <div className="text-[#F8FAFC]/30">{c.assembly_point}</div>}
+                        {!c.city && !c.assembly_point && '—'}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs font-medium ${MED_COLORS[c.medical_check] || 'text-[#F8FAFC]/40'}`}>{c.medical_check || '—'}</span>
+                        <span className={`text-xs font-medium ${SB_COLORS[c.sb_check] || 'text-[#F8FAFC]/40'}`}>
+                          {c.sb_check === 'Согласован' ? '✓' : c.sb_check === 'Не согласован' ? '✗' : '—'}
+                        </span>
                       </td>
                       <td className="px-4 py-3">
-                        {c.payment_basis === 'Готовится к отправке' ? (
-                          <div>
-                            <div className="text-xs text-green-400 font-medium">100 000 ₽</div>
-                            <div className={`text-xs ${c.payment_made === 'Да' ? 'text-green-400' : 'text-[#F8FAFC]/35'}`}>
-                              {c.payment_made === 'Да' ? '✓ Выплачено' : 'Не выплачено'}
-                            </div>
-                          </div>
-                        ) : c.payment_basis === 'Отказался от отправки' ? (
-                          <span className="text-xs text-red-400/70">Не предусмотрена</span>
-                        ) : (
-                          <span className="text-xs text-[#F8FAFC]/25">—</span>
-                        )}
+                        <span className={`text-xs font-medium ${MED_COLORS[c.medical_check] || 'text-[#F8FAFC]/40'}`}>
+                          {c.medical_check === 'Прошёл' ? '✓' : c.medical_check === 'Не прошёл' ? '✗' : '—'}
+                        </span>
                       </td>
-                      <td className="px-4 py-3 text-xs text-[#F8FAFC]/45">{c.arrival_date || '—'}</td>
+                      <td className="px-4 py-3 text-xs text-[#F8FAFC]/45 whitespace-nowrap">{c.arrival_date || '—'}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs ${PAY_COLORS[c.payment_basis] || 'text-[#F8FAFC]/25'}`}>
+                          {c.payment_basis || '—'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-medium ${c.payment_made === 'Да' ? 'text-green-400' : 'text-[#F8FAFC]/30'}`}>
+                          {c.payment_made === 'Да' ? '✓ Да' : 'Нет'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {c.comment ? (
+                          <Tooltip text={c.comment}>
+                            <MessageSquare size={14} className="text-[#7B3FBF] cursor-help" />
+                          </Tooltip>
+                        ) : <span className="text-[#F8FAFC]/20">—</span>}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <button onClick={() => { setEditCandidate(c); setModalOpen(true); }}
@@ -216,7 +290,7 @@ export default function Candidates() {
                     </tr>
                   ))}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={9} className="text-center py-12 text-[#F8FAFC]/30">Кандидаты не найдены</td></tr>
+                    <tr><td colSpan={10} className="text-center py-12 text-[#F8FAFC]/30">Кандидаты не найдены</td></tr>
                   )}
                 </tbody>
               </table>

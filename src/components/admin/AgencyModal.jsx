@@ -1,61 +1,39 @@
 import { useState } from 'react';
-import { X, Upload, Send, Check } from 'lucide-react';
+import { X, Upload } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
-const STATUSES = ['Рассматриваем', 'Переговоры', 'Согласен', 'Заключили договор'];
-const CALL_TYPES = ['Zoom', 'Телефон', 'Яндекс Мост'];
-
-function generatePassword() {
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#';
-  return Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-}
-
 export default function AgencyModal({ agency, onSave, onClose }) {
-  const [inviteSent, setInviteSent] = useState(false);
-  const [inviting, setInviting] = useState(false);
   const [form, setForm] = useState({
     name: agency?.name || '',
     city: agency?.city || '',
     email: agency?.email || '',
     phone: agency?.phone || '',
-    status: agency?.status || 'Рассматриваем',
     is_active: agency?.is_active !== false,
     access_code: agency?.access_code || '',
     contract_url: agency?.contract_url || '',
     contract_date: agency?.contract_date || '',
     special_conditions: agency?.special_conditions || '',
     comment: agency?.comment || '',
-    call_datetime: agency?.call_datetime || '',
-    call_type: agency?.call_type || 'Телефон',
     planned_candidates: agency?.planned_candidates || '',
-    manager_email: agency?.manager_email || '',
   });
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver]   = useState(false);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const handleInvite = async () => {
-    const email = form.manager_email;
-    if (!email) { alert('Введите email менеджера'); return; }
-    setInviting(true);
-    const password = generatePassword();
-    try {
-      await base44.users.inviteUser(email, 'user');
-      await base44.functions.invoke('sendInvite', { email, agencyName: form.name, password });
-      setInviteSent(true);
-    } catch (err) {
-      alert('Ошибка отправки приглашения: ' + err.message);
-    }
-    setInviting(false);
-  };
-
-  const handleContractUpload = async (e) => {
-    const file = e.target.files[0];
+  const uploadContract = async (file) => {
     if (!file) return;
     setUploading(true);
     const { file_url } = await base44.integrations.Core.UploadFile({ file });
     set('contract_url', file_url);
     setUploading(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) uploadContract(file);
   };
 
   const inp = "w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(123,63,191,0.2)] rounded-lg px-3 py-2.5 text-sm text-[#F8FAFC] placeholder:text-[#F8FAFC]/25 focus:outline-none focus:border-[#7B3FBF] transition-all";
@@ -87,26 +65,10 @@ export default function AgencyModal({ agency, onSave, onClose }) {
               <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Телефон</label>
               <input className={inp} value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+7 (___) ___-__-__" />
             </div>
-            <div className="sm:col-span-2">
-              <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Email менеджера агентства</label>
-              <div className="flex gap-2">
-                <input className={inp + ' flex-1'} type="email" value={form.manager_email} onChange={e => { set('manager_email', e.target.value); setInviteSent(false); }} placeholder="manager@example.ru" />
-                <button
-                  type="button"
-                  onClick={handleInvite}
-                  disabled={inviting || !form.manager_email}
-                  className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${inviteSent ? 'bg-green-500/20 border border-green-500/30 text-green-400' : 'bg-[#7B3FBF]/15 border border-[rgba(123,63,191,0.3)] text-[#7B3FBF] hover:bg-[#7B3FBF]/25'} disabled:opacity-50`}
-                >
-                  {inviting ? <div className="w-3 h-3 border-2 border-current/30 border-t-current rounded-full animate-spin" /> : inviteSent ? <Check size={13}/> : <Send size={13}/>}
-                  {inviteSent ? 'Отправлено' : 'Пригласить'}
-                </button>
-              </div>
-              <p className="text-xs text-[#F8FAFC]/25 mt-1">Менеджер получит письмо с логином и паролем для входа</p>
-            </div>
             <div>
               <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Код доступа агентства</label>
               <div className="flex gap-2">
-                <input className={inp + ' flex-1 font-mono tracking-widest'} value={form.access_code} onChange={e => set('access_code', e.target.value)} placeholder="Например: AG-2026-XYZ" />
+                <input className={inp + ' flex-1 font-mono tracking-widest'} value={form.access_code} onChange={e => set('access_code', e.target.value)} placeholder="AG-2026-XYZ" />
                 <button type="button" onClick={() => {
                   const code = 'AG-' + Math.random().toString(36).substring(2, 8).toUpperCase();
                   set('access_code', code);
@@ -114,51 +76,45 @@ export default function AgencyModal({ agency, onSave, onClose }) {
                   Сгенерировать
                 </button>
               </div>
-              <p className="text-xs text-[#F8FAFC]/25 mt-1">Этот код представитель агентства вводит для входа</p>
-            </div>
-            <div>
-              <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Статус агентства</label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={form.is_active} onChange={e => set('is_active', e.target.checked)} className="w-4 h-4 rounded accent-[#7B3FBF]" />
-                <span className="text-sm text-[#F8FAFC]/70">{form.is_active ? 'Активно (доступ по коду разрешён)' : 'Отключено (доступ заблокирован)'}</span>
-              </label>
-            </div>
-            <div>
-              <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Статус взаимодействия</label>
-              <select className={inp} value={form.status} onChange={e => set('status', e.target.value)}>
-                {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Дата подписания договора</label>
-              <input className={inp} type="date" value={form.contract_date} onChange={e => set('contract_date', e.target.value)} />
+              <p className="text-xs text-[#F8FAFC]/25 mt-1">Код для входа представителя агентства</p>
             </div>
             <div>
               <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Кол-во плановых кандидатов</label>
               <input className={inp} type="number" value={form.planned_candidates} onChange={e => set('planned_candidates', e.target.value)} placeholder="0" />
             </div>
             <div>
-              <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Дата и время звонка</label>
-              <input className={inp} type="datetime-local" value={form.call_datetime} onChange={e => set('call_datetime', e.target.value)} />
+              <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Дата подписания договора</label>
+              <input className={inp} type="date" value={form.contract_date} onChange={e => set('contract_date', e.target.value)} />
             </div>
             <div>
-              <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Вид звонка</label>
-              <select className={inp} value={form.call_type} onChange={e => set('call_type', e.target.value)}>
-                {CALL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Статус агентства</label>
+              <label className="flex items-center gap-2 cursor-pointer mt-1">
+                <input type="checkbox" checked={form.is_active} onChange={e => set('is_active', e.target.checked)} className="w-4 h-4 rounded accent-[#7B3FBF]" />
+                <span className="text-sm text-[#F8FAFC]/70">{form.is_active ? 'Активно' : 'Отключено'}</span>
+              </label>
             </div>
           </div>
 
-          {/* Contract upload */}
+          {/* Drag & drop договор */}
           <div>
-            <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Договор (загрузить файл)</label>
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 px-4 py-2.5 bg-[rgba(123,63,191,0.1)] border border-[rgba(123,63,191,0.25)] rounded-lg text-sm text-[#7B3FBF] cursor-pointer hover:bg-[rgba(123,63,191,0.2)] transition-all">
-                <Upload size={14} />
-                {uploading ? 'Загрузка...' : 'Выбрать файл'}
-                <input type="file" className="hidden" onChange={handleContractUpload} accept=".pdf,.doc,.docx" />
+            <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Договор (перетащите файл или нажмите)</label>
+            <div
+              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              className={`border-2 border-dashed rounded-xl p-5 text-center transition-all ${dragOver ? 'border-[#7B3FBF] bg-[#7B3FBF]/10' : 'border-[rgba(123,63,191,0.25)] hover:border-[#7B3FBF]/50'}`}
+            >
+              <Upload size={18} className="mx-auto mb-1.5 text-[#F8FAFC]/30" />
+              <p className="text-xs text-[#F8FAFC]/40 mb-2">Перетащите PDF, DOC или</p>
+              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[rgba(123,63,191,0.12)] border border-[rgba(123,63,191,0.25)] rounded-lg text-xs text-[#7B3FBF] cursor-pointer hover:bg-[rgba(123,63,191,0.2)] transition-all">
+                <Upload size={12} /> {uploading ? 'Загрузка...' : 'Выбрать файл'}
+                <input type="file" className="hidden" onChange={e => uploadContract(e.target.files[0])} accept=".pdf,.doc,.docx" />
               </label>
-              {form.contract_url && <a href={form.contract_url} target="_blank" rel="noreferrer" className="text-xs text-[#C9A84C] hover:underline">Скачать загруженный</a>}
+              {form.contract_url && (
+                <a href={form.contract_url} target="_blank" rel="noreferrer" className="block text-xs text-[#C9A84C] hover:underline mt-2">
+                  ✓ Договор загружен — скачать
+                </a>
+              )}
             </div>
           </div>
 

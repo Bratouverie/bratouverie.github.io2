@@ -1,23 +1,16 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Download, Phone, Mail, Calendar, MessageSquare, Edit2, Trash2, Search, ChevronDown } from 'lucide-react';
+import { Plus, Download, Mail, Phone, Edit2, Trash2, Search, RefreshCw } from 'lucide-react';
 import AgencyModal from '../../components/admin/AgencyModal';
 
-const STATUS_COLORS = {
-  'Рассматриваем': 'bg-blue-500/15 text-blue-400 border-blue-500/25',
-  'Переговоры': 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25',
-  'Согласен': 'bg-purple-500/15 text-purple-400 border-purple-500/25',
-  'Заключили договор': 'bg-green-500/15 text-green-400 border-green-500/25',
-};
-
 export default function Agencies() {
-  const [agencies, setAgencies] = useState([]);
+  const [agencies, setAgencies]     = useState([]);
   const [candidates, setCandidates] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [modalOpen, setModalOpen] = useState(false);
+  const [loading, setLoading]       = useState(true);
+  const [search, setSearch]         = useState('');
+  const [filterCity, setFilterCity] = useState('');
+  const [modalOpen, setModalOpen]   = useState(false);
   const [editAgency, setEditAgency] = useState(null);
   const navigate = useNavigate();
 
@@ -34,11 +27,18 @@ export default function Agencies() {
 
   useEffect(() => { load(); }, []);
 
-  const getCandidatesForAgency = (agencyId) =>
-    candidates.filter(c => c.agency_id === agencyId);
+  const getCandidatesForAgency = (agencyId) => candidates.filter(c => c.agency_id === agencyId);
+
+  const recalcAll = async () => {
+    for (const ag of agencies) {
+      const count = candidates.filter(c => c.agency_id === ag.id).length;
+      await base44.entities.Agency.update(ag.id, { candidates_count: count });
+    }
+    load();
+  };
 
   const handleDelete = async (id) => {
-    if (!confirm('Удалить агентство?')) return;
+    if (!confirm('Удалить агентство? Кандидаты агентства останутся в базе.')) return;
     await base44.entities.Agency.delete(id);
     load();
   };
@@ -52,11 +52,10 @@ export default function Agencies() {
   };
 
   const exportCSV = () => {
-    const headers = ['Агентство', 'Город', 'Email', 'Телефон', 'Статус', 'Кандидатов', 'Дата договора', 'Вид звонка', 'Дата звонка', 'Кол-во план.'];
+    const headers = ['Агентство', 'Город', 'Email', 'Телефон', 'Кандидатов', 'Дата договора', 'Активно'];
     const rows = agencies.map(a => [
-      a.name, a.city, a.email, a.phone, a.status,
-      getCandidatesForAgency(a.id).length, a.contract_date,
-      a.call_type, a.call_datetime, a.planned_candidates
+      a.name, a.city, a.email, a.phone,
+      getCandidatesForAgency(a.id).length, a.contract_date, a.is_active ? 'Да' : 'Нет'
     ]);
     const csv = [headers, ...rows].map(r => r.map(v => `"${v || ''}"`).join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -64,12 +63,16 @@ export default function Agencies() {
     const a = document.createElement('a'); a.href = url; a.download = 'agencies.csv'; a.click();
   };
 
+  const cities = [...new Set(agencies.map(a => a.city).filter(Boolean))].sort();
+
   const filtered = agencies.filter(a => {
     const q = search.toLowerCase();
     const matchSearch = !q || a.name?.toLowerCase().includes(q) || a.city?.toLowerCase().includes(q) || a.email?.toLowerCase().includes(q);
-    const matchStatus = !filterStatus || a.status === filterStatus;
-    return matchSearch && matchStatus;
+    const matchCity = !filterCity || a.city === filterCity;
+    return matchSearch && matchCity;
   });
+
+  const inp = "px-3 py-2.5 bg-[rgba(255,255,255,0.04)] border border-[rgba(123,63,191,0.2)] rounded-lg text-sm text-[#F8FAFC] focus:outline-none focus:border-[#7B3FBF]";
 
   return (
     <div className="min-h-screen bg-[#05070A] text-[#F8FAFC]">
@@ -85,7 +88,11 @@ export default function Agencies() {
             <Link to="/admin/candidates" className="text-sm text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-colors">База кандидатов</Link>
             <Link to="/admin/users" className="text-sm text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-colors">Пользователи</Link>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button onClick={recalcAll} title="Пересчитать статистику"
+              className="p-2 rounded-lg border border-[rgba(123,63,191,0.2)] text-[#F8FAFC]/50 hover:text-[#7B3FBF] hover:border-[#7B3FBF]/40 transition-all">
+              <RefreshCw size={14} />
+            </button>
             <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 text-xs rounded border border-[rgba(201,168,76,0.3)] text-[#C9A84C] hover:bg-[#C9A84C]/10 transition-all">
               <Download size={14} /> Экспорт CSV
             </button>
@@ -102,24 +109,24 @@ export default function Agencies() {
         <div className="flex flex-wrap gap-3 mb-6">
           <div className="relative flex-1 min-w-[200px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#F8FAFC]/30" />
-            <input
-              type="text" placeholder="Поиск по названию, городу, email..."
+            <input type="text" placeholder="Поиск по названию, городу, email..."
               value={search} onChange={e => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 bg-[rgba(255,255,255,0.04)] border border-[rgba(123,63,191,0.2)] rounded-lg text-sm text-[#F8FAFC] placeholder:text-[#F8FAFC]/25 focus:outline-none focus:border-[#7B3FBF]"
-            />
+              className={inp + ' w-full pl-9'} />
           </div>
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-            className="px-4 py-2.5 bg-[rgba(255,255,255,0.04)] border border-[rgba(123,63,191,0.2)] rounded-lg text-sm text-[#F8FAFC] focus:outline-none focus:border-[#7B3FBF]">
-            <option value="">Все статусы</option>
-            {['Рассматриваем','Переговоры','Согласен','Заключили договор'].map(s => <option key={s} value={s}>{s}</option>)}
+          <select value={filterCity} onChange={e => setFilterCity(e.target.value)} className={inp}>
+            <option value="">Все города</option>
+            {cities.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
+          {filterCity && (
+            <button onClick={() => setFilterCity('')} className="px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 rounded-lg transition-all">✕ Сбросить</button>
+          )}
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           {[
             { label: 'Всего агентств', value: agencies.length },
-            { label: 'Заключили договор', value: agencies.filter(a => a.status === 'Заключили договор').length },
+            { label: 'Активных', value: agencies.filter(a => a.is_active !== false).length },
             { label: 'Всего кандидатов', value: candidates.length },
             { label: 'Готовы к отправке', value: candidates.filter(c => c.payment_basis === 'Готовится к отправке').length },
           ].map(s => (
@@ -139,7 +146,7 @@ export default function Agencies() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[rgba(123,63,191,0.15)]">
-                    {['Агентство', 'Город', 'Контакты', 'Статус', 'Кандидатов', 'Звонок', 'Договор', 'Действия'].map(h => (
+                    {['Агентство', 'Город', 'Контакты', 'Кандидатов', 'Дата договора', 'Статус', 'Действия'].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -160,32 +167,28 @@ export default function Agencies() {
                           {agency.email && <a href={`mailto:${agency.email}`} className="flex items-center gap-1.5 text-[#F8FAFC]/60 hover:text-[#C9A84C] text-xs mb-1"><Mail size={11}/>{agency.email}</a>}
                           {agency.phone && <a href={`tel:${agency.phone}`} className="flex items-center gap-1.5 text-[#F8FAFC]/60 hover:text-[#C9A84C] text-xs"><Phone size={11}/>{agency.phone}</a>}
                         </td>
-                        <td className="px-4 py-3">
-                          <span className={`text-xs px-2.5 py-1 rounded border font-medium ${STATUS_COLORS[agency.status] || 'bg-white/5 text-white/40 border-white/10'}`}>
-                            {agency.status || '—'}
-                          </span>
-                        </td>
                         <td className="px-4 py-3 text-center">
                           <span className="text-[#7B3FBF] font-bold">{cands.length}</span>
                           {agency.planned_candidates > 0 && <span className="text-[#F8FAFC]/30 text-xs"> / {agency.planned_candidates}</span>}
                         </td>
-                        <td className="px-4 py-3">
-                          {agency.call_datetime && (
-                            <div className="text-xs text-[#F8FAFC]/50">
-                              <div className="flex items-center gap-1"><Calendar size={11}/>{agency.call_datetime}</div>
-                              {agency.call_type && <div className="mt-0.5 text-[#C9A84C]/70">{agency.call_type}</div>}
+                        <td className="px-4 py-3 text-xs text-[#F8FAFC]/50">
+                          {agency.contract_date ? (
+                            <div>
+                              <div>{agency.contract_date}</div>
+                              {agency.contract_url && (
+                                <a href={agency.contract_url} target="_blank" rel="noreferrer"
+                                  onClick={e => e.stopPropagation()}
+                                  className="flex items-center gap-1 text-[#7B3FBF] hover:text-[#C9A84C] mt-0.5">
+                                  <Download size={11}/> Скачать
+                                </a>
+                              )}
                             </div>
-                          )}
+                          ) : <span className="text-[#F8FAFC]/25">—</span>}
                         </td>
                         <td className="px-4 py-3">
-                          {agency.contract_url ? (
-                            <a href={agency.contract_url} target="_blank" rel="noreferrer"
-                              onClick={e => e.stopPropagation()}
-                              className="flex items-center gap-1.5 text-xs text-[#7B3FBF] hover:text-[#C9A84C]">
-                              <Download size={12}/> Скачать
-                            </a>
-                          ) : <span className="text-xs text-[#F8FAFC]/25">—</span>}
-                          {agency.contract_date && <div className="text-xs text-[#F8FAFC]/30 mt-0.5">{agency.contract_date}</div>}
+                          <span className={`text-xs px-2 py-0.5 rounded font-medium ${agency.is_active !== false ? 'bg-green-500/15 text-green-400 border border-green-500/25' : 'bg-red-500/10 text-red-400/70 border border-red-500/20'}`}>
+                            {agency.is_active !== false ? 'Активно' : 'Откл.'}
+                          </span>
                         </td>
                         <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center gap-2">
@@ -203,7 +206,7 @@ export default function Agencies() {
                     );
                   })}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={8} className="text-center py-12 text-[#F8FAFC]/30">Агентства не найдены</td></tr>
+                    <tr><td colSpan={7} className="text-center py-12 text-[#F8FAFC]/30">Агентства не найдены</td></tr>
                   )}
                 </tbody>
               </table>

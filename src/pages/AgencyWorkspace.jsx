@@ -101,7 +101,7 @@ export default function AgencyWorkspace() {
         {/* Agency info card */}
         {agency && (
           <div className="glass-card-gold rounded-xl p-5 mb-6">
-            <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
               <div>
                 <h2 className="text-lg font-black text-[#F8FAFC] mb-1">{agency.name}</h2>
                 <div className="flex flex-wrap gap-4 text-sm text-[#F8FAFC]/50">
@@ -121,6 +121,36 @@ export default function AgencyWorkspace() {
                 )}
               </div>
             </div>
+            {/* По должностям */}
+            {candidates.length > 0 && (() => {
+              const byPos = {};
+              candidates.forEach(c => { if (c.position) byPos[c.position] = (byPos[c.position] || 0) + 1; });
+              const bySB = { 'Согласован': candidates.filter(c=>c.sb_check==='Согласован').length, 'Не согласован': candidates.filter(c=>c.sb_check==='Не согласован').length, 'Не проверялся': candidates.filter(c=>!c.sb_check||c.sb_check==='Не проверялся').length };
+              return (
+                <div className="border-t border-[rgba(201,168,76,0.15)] pt-4 grid md:grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs text-[#C9A84C]/70 font-bold uppercase tracking-wider mb-2">По должностям</div>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(byPos).map(([pos, cnt]) => (
+                        <span key={pos} className="text-xs px-2.5 py-1 rounded bg-[rgba(123,63,191,0.12)] border border-[rgba(123,63,191,0.2)] text-[#F8FAFC]/70">
+                          {pos}: <span className="text-[#7B3FBF] font-bold">{cnt}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-[#C9A84C]/70 font-bold uppercase tracking-wider mb-2">По статусу СБ</div>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(bySB).filter(([,v])=>v>0).map(([status, cnt]) => (
+                        <span key={status} className="text-xs px-2.5 py-1 rounded bg-[rgba(201,168,76,0.08)] border border-[rgba(201,168,76,0.15)] text-[#F8FAFC]/60">
+                          {status}: <span className="text-[#C9A84C] font-bold">{cnt}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 
