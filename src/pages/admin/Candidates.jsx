@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Download, Search, Trash2, Edit2, X, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw } from 'lucide-react';
+import { Plus, Download, Search, Trash2, Edit2, X, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, Archive, ArchiveRestore } from 'lucide-react';
 import CandidateModal from '../../components/admin/CandidateModal';
 
 const POSITIONS = ['Разнорабочий','Строитель','Водитель B','Водитель C','Водитель CE','Водитель D','Автослесарь','Инженер связи','Оператор БПЛА','Взрывотехник','Медицинский работник','Охранник'];
 const SB_COLORS  = { 'Не проверялся':'text-[#F8FAFC]/40', 'Согласован':'text-green-400', 'Не согласован':'text-red-400' };
 const MED_COLORS = { 'Не проверялся':'text-[#F8FAFC]/40', 'Прошёл':'text-green-400', 'Не прошёл':'text-red-400' };
 const PAY_COLORS = { 'Готовится к отправке':'text-green-400', 'Отказался от отправки':'text-red-400/70' };
+
+// Кандидат считается "закрытым" и может быть заархивирован если выплата сделана или отказался
+const isArchivable = (c) =>
+  c.payment_made === 'Да' || c.payment_basis === 'Отказался от отправки';
 
 function Tooltip({ text, children }) {
   return (
@@ -28,6 +32,7 @@ export default function Candidates() {
   const [modalOpen, setModalOpen]   = useState(false);
   const [editCandidate, setEditCandidate] = useState(null);
   const [filters, setFilters] = useState({ agency: '', position: '', sb_check: '', medical_check: '' });
+  const [showArchive, setShowArchive] = useState(false);
   const [searchParams] = useSearchParams();
 
   const load = async () => {
@@ -36,10 +41,8 @@ export default function Candidates() {
       base44.entities.Candidate.list('-created_date', 500),
       base44.entities.Agency.list('-created_date', 200),
     ]);
-    // Только активные агентства (без deleted_at)
     const activeAg = ag.filter(a => !a.deleted_at);
     const activeAgIds = new Set(activeAg.map(a => a.id));
-    // Скрываем кандидатов удалённых агентств
     setCandidates(cand.filter(c => !c.agency_id || activeAgIds.has(c.agency_id)));
     setAgencies(activeAg);
     setLoading(false);
@@ -59,7 +62,6 @@ export default function Candidates() {
     load();
   };
 
-  // При удалении — пересчитываем candidates_count у агентства
   const handleDelete = async (id) => {
     if (!confirm('Удалить кандидата?')) return;
     const cand = candidates.find(c => c.id === id);
@@ -71,19 +73,20 @@ export default function Candidates() {
     load();
   };
 
-  const recalcAll = async () => {
-    const all = await base44.entities.Candidate.list('-created_date', 1000);
-    const agList = await base44.entities.Agency.list('-created_date', 200);
-    for (const ag of agList) {
-      const count = all.filter(c => c.agency_id === ag.id).length;
-      await base44.entities.Agency.update(ag.id, { candidates_count: count });
-    }
-    load();
+  const handleArchive = async (c) => {
+    await base44.entities.Candidate.update(c.id, { is_archived: true });
+    setCandidates(prev => prev.map(x => x.id === c.id ? { ...x, is_archived: true } : x));
+  };
+
+  const handleUnarchive = async (c) => {
+    await base44.entities.Candidate.update(c.id, { is_archived: false });
+    setCandidates(prev => prev.map(x => x.id === c.id ? { ...x, is_archived: false } : x));
   };
 
   const exportCSV = () => {
+    const src = showArchive ? archived : filteredActive;
     const headers = ['ФИО','Должность','Агентство','Город','Пункт сбора','Дата рождения','Проверка СБ','Медкомиссия','Основание выплаты','Выплачено','Дата прибытия','Комментарий'];
-    const rows = filtered.map(c => [
+    const rows = src.map(c => [
       c.full_name, c.position, c.agency_name, c.city, c.assembly_point,
       c.birth_date, c.sb_check, c.medical_check,
       c.payment_basis, c.payment_made, c.arrival_date, c.comment
@@ -91,21 +94,48 @@ export default function Candidates() {
     const csv = [headers, ...rows].map(r => r.map(v => `"${v || ''}"`).join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'candidates.csv'; a.click();
+    const a = document.createElement('a'); a.href = url; a.download = showArchive ? 'candidates_archive.csv' : 'candidates.csv'; a.click();
   };
 
-  const filtered = candidates.filter(c => {
+  // Разделяем на активных и архивных
+  const active   = candidates.filter(c => !c.is_archived);
+  const archived = candidates.filter(c => c.is_archived);
+
+  const applyFilters = (list) => {
     const q = search.toLowerCase();
-    const matchSearch = !q || c.full_name?.toLowerCase().includes(q) || c.position?.toLowerCase().includes(q) || c.city?.toLowerCase().includes(q);
-    const matchAgency = !filters.agency || c.agency_id === filters.agency;
-    const matchPos    = !filters.position || c.position === filters.position;
-    const matchSB     = !filters.sb_check || c.sb_check === filters.sb_check;
-    const matchMed    = !filters.medical_check || c.medical_check === filters.medical_check;
-    return matchSearch && matchAgency && matchPos && matchSB && matchMed;
-  });
+    return list.filter(c => {
+      const matchSearch = !q || c.full_name?.toLowerCase().includes(q) || c.position?.toLowerCase().includes(q) || c.city?.toLowerCase().includes(q);
+      const matchAgency = !filters.agency || c.agency_id === filters.agency;
+      const matchPos    = !filters.position || c.position === filters.position;
+      const matchSB     = !filters.sb_check || c.sb_check === filters.sb_check;
+      const matchMed    = !filters.medical_check || c.medical_check === filters.medical_check;
+      return matchSearch && matchAgency && matchPos && matchSB && matchMed;
+    });
+  };
+
+  const filteredActive   = applyFilters(active);
+  const filteredArchived = applyFilters(archived);
+  const displayed = showArchive ? filteredArchived : filteredActive;
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
   const inp = "px-3 py-2 bg-[rgba(255,255,255,0.04)] border border-[rgba(123,63,191,0.2)] rounded-lg text-sm text-[#F8FAFC] focus:outline-none focus:border-[#7B3FBF]";
+
+  // Статистика только по активным
+  const readyCount = active.filter(c => c.payment_basis === 'Готовится к отправке').length;
+  const paidCount  = active.filter(c => c.payment_made === 'Да').length;
+  // СБ: согласован, но НЕ прошёл мед, НЕ к отправке, НЕ выплачено
+  const sbCount = active.filter(c =>
+    c.sb_check === 'Согласован' &&
+    c.medical_check !== 'Прошёл' &&
+    c.payment_basis !== 'Готовится к отправке' &&
+    c.payment_made !== 'Да'
+  ).length;
+  // Мед: прошёл, но НЕ к отправке и НЕ выплачено
+  const medCount = active.filter(c =>
+    c.medical_check === 'Прошёл' &&
+    c.payment_basis !== 'Готовится к отправке' &&
+    c.payment_made !== 'Да'
+  ).length;
 
   return (
     <div className="min-h-screen bg-[#05070A] text-[#F8FAFC]">
@@ -126,53 +156,50 @@ export default function Candidates() {
               className="p-2 rounded-lg border border-[rgba(123,63,191,0.2)] text-[#F8FAFC]/50 hover:text-[#7B3FBF] hover:border-[#7B3FBF]/40 transition-all">
               <RefreshCw size={14} />
             </button>
+            {archived.length > 0 && (
+              <button onClick={() => setShowArchive(v => !v)}
+                className={`flex items-center gap-2 px-4 py-2 text-xs rounded border transition-all ${showArchive ? 'border-[#C9A84C]/50 text-[#C9A84C] bg-[#C9A84C]/10' : 'border-[rgba(255,255,255,0.1)] text-[#F8FAFC]/40 hover:text-[#C9A84C]'}`}>
+                <Archive size={13} /> Архив ({archived.length})
+              </button>
+            )}
             <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 text-xs rounded border border-[rgba(201,168,76,0.3)] text-[#C9A84C] hover:bg-[#C9A84C]/10 transition-all">
               <Download size={14} /> Экспорт CSV
             </button>
-            <button onClick={() => { setEditCandidate(null); setModalOpen(true); }}
-              className="flex items-center gap-2 px-4 py-2 text-xs rounded bg-[#7B3FBF] text-white hover:bg-[#8B4FCF] transition-all">
-              <Plus size={14} /> Добавить кандидата
-            </button>
+            {!showArchive && (
+              <button onClick={() => { setEditCandidate(null); setModalOpen(true); }}
+                className="flex items-center gap-2 px-4 py-2 text-xs rounded bg-[#7B3FBF] text-white hover:bg-[#8B4FCF] transition-all">
+                <Plus size={14} /> Добавить кандидата
+              </button>
+            )}
           </div>
         </div>
       </div>
 
       <div className="max-w-[1400px] mx-auto px-6 py-6">
-        {/* Stats */}
-        {(() => {
-          const readyCount = candidates.filter(c => c.payment_basis === 'Готовится к отправке').length;
-          const paidCount  = candidates.filter(c => c.payment_made === 'Да').length;
-          // СБ: только те, кто согласован, но НЕ готовится к отправке и НЕ выплачено
-          const sbCount = candidates.filter(c =>
-            c.sb_check === 'Согласован' &&
-            c.payment_basis !== 'Готовится к отправке' &&
-            c.payment_made !== 'Да'
-          ).length;
-          // Мед: только те, кто прошёл, но НЕ готовится к отправке и НЕ выплачено
-          const medCount = candidates.filter(c =>
-            c.medical_check === 'Прошёл' &&
-            c.payment_basis !== 'Готовится к отправке' &&
-            c.payment_made !== 'Да'
-          ).length;
-          const stats = [
-            { label: 'Всего кандидатов', value: candidates.length },
-            { label: 'Согласованы СБ', value: sbCount },
-            { label: 'Прошли медкомиссию', value: medCount },
-            { label: 'К отправке', value: readyCount },
-            { label: 'Выплачено (чел.)', value: paidCount, sub: `${(paidCount * 100000).toLocaleString('ru-RU')} ₽` },
-          ];
-          return (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-              {stats.map(s => (
-                <div key={s.label} className="glass-card rounded-xl p-4">
-                  <div className="text-2xl font-black text-[#7B3FBF]">{s.value}</div>
-                  <div className="text-xs text-[#F8FAFC]/45 mt-1">{s.label}</div>
-                  {s.sub && <div className="text-xs text-[#C9A84C] font-bold mt-0.5">{s.sub}</div>}
-                </div>
-              ))}
-            </div>
-          );
-        })()}
+        {/* Stats — только по активным */}
+        {!showArchive && (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            {[
+              { label: 'Всего активных', value: active.length },
+              { label: 'Согласованы СБ', value: sbCount },
+              { label: 'Прошли медкомиссию', value: medCount },
+              { label: 'К отправке', value: readyCount },
+              { label: 'Выплачено (чел.)', value: paidCount, sub: `${(paidCount * 100000).toLocaleString('ru-RU')} ₽` },
+            ].map(s => (
+              <div key={s.label} className="glass-card rounded-xl p-4">
+                <div className="text-2xl font-black text-[#7B3FBF]">{s.value}</div>
+                <div className="text-xs text-[#F8FAFC]/45 mt-1">{s.label}</div>
+                {s.sub && <div className="text-xs text-[#C9A84C] font-bold mt-0.5">{s.sub}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {showArchive && (
+          <div className="mb-4 px-4 py-2.5 rounded-xl bg-[#C9A84C]/8 border border-[#C9A84C]/20 text-xs text-[#C9A84C]/80 flex items-center gap-2">
+            <Archive size={13} /> Архив: кандидаты с закрытыми контрактами или отказавшиеся от участия. Можно восстановить в основную таблицу.
+          </div>
+        )}
 
         {/* Filters */}
         <div className="flex flex-wrap gap-3 mb-4">
@@ -206,7 +233,9 @@ export default function Candidates() {
           )}
         </div>
 
-        <div className="text-xs text-[#F8FAFC]/30 mb-4">Показано: {filtered.length} из {candidates.length}</div>
+        <div className="text-xs text-[#F8FAFC]/30 mb-4">
+          {showArchive ? `Архив: ${filteredArchived.length} из ${archived.length}` : `Показано: ${filteredActive.length} из ${active.length}`}
+        </div>
 
         {/* Table */}
         {loading ? (
@@ -219,46 +248,18 @@ export default function Candidates() {
                   <tr className="border-b border-[rgba(123,63,191,0.15)]">
                     <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider">ФИО / Агентство</th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider whitespace-nowrap">Должность</th>
-                    <th className="px-4 py-3">
-                      <Tooltip text="Город проживания / Пункт сбора">
-                        <MapPin size={13} className="text-[#F8FAFC]/35" />
-                      </Tooltip>
-                    </th>
-                    <th className="px-4 py-3">
-                      <Tooltip text="Проверка СБ">
-                        <Shield size={13} className="text-[#F8FAFC]/35" />
-                      </Tooltip>
-                    </th>
-                    <th className="px-4 py-3">
-                      <Tooltip text="Медкомиссия">
-                        <Stethoscope size={13} className="text-[#F8FAFC]/35" />
-                      </Tooltip>
-                    </th>
-                    <th className="px-4 py-3">
-                      <Tooltip text="Дата прибытия">
-                        <CalendarDays size={13} className="text-[#F8FAFC]/35" />
-                      </Tooltip>
-                    </th>
-                    <th className="px-4 py-3">
-                      <Tooltip text="Основание для выплаты">
-                        <Banknote size={13} className="text-[#F8FAFC]/35" />
-                      </Tooltip>
-                    </th>
-                    <th className="px-4 py-3">
-                      <Tooltip text="Выплачено">
-                        <CheckCircle size={13} className="text-[#F8FAFC]/35" />
-                      </Tooltip>
-                    </th>
-                    <th className="px-4 py-3">
-                      <Tooltip text="Комментарий">
-                        <MessageSquare size={13} className="text-[#F8FAFC]/35" />
-                      </Tooltip>
-                    </th>
+                    <th className="px-4 py-3"><Tooltip text="Город / Пункт сбора"><MapPin size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
+                    <th className="px-4 py-3"><Tooltip text="Проверка СБ"><Shield size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
+                    <th className="px-4 py-3"><Tooltip text="Медкомиссия"><Stethoscope size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
+                    <th className="px-4 py-3"><Tooltip text="Дата прибытия"><CalendarDays size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
+                    <th className="px-4 py-3"><Tooltip text="Основание для выплаты"><Banknote size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
+                    <th className="px-4 py-3"><Tooltip text="Выплачено"><CheckCircle size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
+                    <th className="px-4 py-3"><Tooltip text="Комментарий"><MessageSquare size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider">Действия</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((c) => (
+                  {displayed.map((c) => (
                     <tr key={c.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(123,63,191,0.06)] transition-colors">
                       <td className="px-4 py-3">
                         <div className="font-bold text-[#F8FAFC]">{c.full_name}</div>
@@ -301,11 +302,26 @@ export default function Candidates() {
                         ) : <span className="text-[#F8FAFC]/20">—</span>}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => { setEditCandidate(c); setModalOpen(true); }}
-                            className="p-1.5 rounded hover:bg-[#7B3FBF]/20 text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-all">
-                            <Edit2 size={14}/>
-                          </button>
+                        <div className="flex items-center gap-1">
+                          {showArchive ? (
+                            <button onClick={() => handleUnarchive(c)} title="Вернуть из архива"
+                              className="p-1.5 rounded hover:bg-green-500/20 text-[#F8FAFC]/50 hover:text-green-400 transition-all">
+                              <ArchiveRestore size={14}/>
+                            </button>
+                          ) : (
+                            <>
+                              <button onClick={() => { setEditCandidate(c); setModalOpen(true); }}
+                                className="p-1.5 rounded hover:bg-[#7B3FBF]/20 text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-all">
+                                <Edit2 size={14}/>
+                              </button>
+                              {isArchivable(c) && (
+                                <button onClick={() => handleArchive(c)} title="Переместить в архив"
+                                  className="p-1.5 rounded hover:bg-[#C9A84C]/20 text-[#F8FAFC]/50 hover:text-[#C9A84C] transition-all">
+                                  <Archive size={14}/>
+                                </button>
+                              )}
+                            </>
+                          )}
                           <button onClick={() => handleDelete(c.id)}
                             className="p-1.5 rounded hover:bg-red-500/20 text-[#F8FAFC]/50 hover:text-red-400 transition-all">
                             <Trash2 size={14}/>
@@ -314,8 +330,10 @@ export default function Candidates() {
                       </td>
                     </tr>
                   ))}
-                  {filtered.length === 0 && (
-                    <tr><td colSpan={10} className="text-center py-12 text-[#F8FAFC]/30">Кандидаты не найдены</td></tr>
+                  {displayed.length === 0 && (
+                    <tr><td colSpan={10} className="text-center py-12 text-[#F8FAFC]/30">
+                      {showArchive ? 'Архив пуст' : 'Кандидаты не найдены'}
+                    </td></tr>
                   )}
                 </tbody>
               </table>

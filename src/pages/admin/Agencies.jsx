@@ -49,7 +49,7 @@ export default function Agencies() {
     } else {
       // При создании: если дата договора не указана — ставим сегодня
       const today = new Date().toISOString().split('T')[0];
-      await base44.entities.Agency.create({ ...data, contract_date: data.contract_date || today });
+      await base44.entities.Agency.create(data);
     }
     setModalOpen(false);
     setEditAgency(null);

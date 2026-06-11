@@ -11,7 +11,7 @@ export default function AgencyModal({ agency, onSave, onClose }) {
     is_active: agency?.is_active !== false,
     access_code: agency?.access_code || '',
     contract_url: agency?.contract_url || '',
-    contract_date: agency?.contract_date || '',
+    contract_date: agency?.contract_date ?? '',
     special_conditions: agency?.special_conditions || '',
     comment: agency?.comment || '',
     planned_candidates: agency?.planned_candidates || '',
