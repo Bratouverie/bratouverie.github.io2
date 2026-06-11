@@ -142,10 +142,22 @@ export default function Candidates() {
         {(() => {
           const readyCount = candidates.filter(c => c.payment_basis === 'Готовится к отправке').length;
           const paidCount  = candidates.filter(c => c.payment_made === 'Да').length;
+          // СБ: только те, кто согласован, но НЕ готовится к отправке и НЕ выплачено
+          const sbCount = candidates.filter(c =>
+            c.sb_check === 'Согласован' &&
+            c.payment_basis !== 'Готовится к отправке' &&
+            c.payment_made !== 'Да'
+          ).length;
+          // Мед: только те, кто прошёл, но НЕ готовится к отправке и НЕ выплачено
+          const medCount = candidates.filter(c =>
+            c.medical_check === 'Прошёл' &&
+            c.payment_basis !== 'Готовится к отправке' &&
+            c.payment_made !== 'Да'
+          ).length;
           const stats = [
             { label: 'Всего кандидатов', value: candidates.length },
-            { label: 'Согласованы СБ', value: candidates.filter(c => c.sb_check === 'Согласован').length },
-            { label: 'Прошли медкомиссию', value: candidates.filter(c => c.medical_check === 'Прошёл').length },
+            { label: 'Согласованы СБ', value: sbCount },
+            { label: 'Прошли медкомиссию', value: medCount },
             { label: 'К отправке', value: readyCount },
             { label: 'Выплачено (чел.)', value: paidCount, sub: `${(paidCount * 100000).toLocaleString('ru-RU')} ₽` },
           ];

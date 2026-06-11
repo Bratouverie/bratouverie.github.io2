@@ -44,8 +44,13 @@ export default function Agencies() {
   };
 
   const handleSave = async (data, id) => {
-    if (id) await base44.entities.Agency.update(id, data);
-    else await base44.entities.Agency.create(data);
+    if (id) {
+      await base44.entities.Agency.update(id, data);
+    } else {
+      // При создании: если дата договора не указана — ставим сегодня
+      const today = new Date().toISOString().split('T')[0];
+      await base44.entities.Agency.create({ ...data, contract_date: data.contract_date || today });
+    }
     setModalOpen(false);
     setEditAgency(null);
     load();
