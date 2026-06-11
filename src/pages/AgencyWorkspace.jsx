@@ -1,11 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Plus, Edit2, Trash2, LogOut, Building2, Users, Search } from 'lucide-react';
+import { Plus, Edit2, Trash2, LogOut, Building2, Users, Search, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays } from 'lucide-react';
 import CandidateModal from '../components/admin/CandidateModal';
 
 const SB_COLORS  = { 'Не проверялся': 'text-[#F8FAFC]/40', 'Согласован': 'text-green-400', 'Не согласован': 'text-red-400' };
 const MED_COLORS = { 'Не проверялся': 'text-[#F8FAFC]/40', 'Прошёл': 'text-green-400', 'Не прошёл': 'text-red-400' };
+const PAY_COLORS = { 'Готовится к отправке': 'text-green-400', 'Отказался от отправки': 'text-red-400/70' };
+
+function Tooltip({ text, children }) {
+  return (
+    <div className="relative group/tip inline-flex items-center">
+      {children}
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 rounded bg-[#0D1B3E] border border-[rgba(123,63,191,0.3)] text-xs text-[#F8FAFC]/80 whitespace-nowrap opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity z-[9999] shadow-lg">
+        {text}
+      </div>
+    </div>
+  );
+}
 
 export default function AgencyWorkspace() {
   const navigate = useNavigate();
@@ -98,56 +110,49 @@ export default function AgencyWorkspace() {
       </div>
 
       <div className="max-w-[1400px] mx-auto px-6 py-6">
-        {/* Agency info card */}
+        {/* Agency info card — compact */}
         {agency && (
-          <div className="glass-card-gold rounded-xl p-5 mb-6">
-            <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-              <div>
-                <h2 className="text-lg font-black text-[#F8FAFC] mb-1">{agency.name}</h2>
-                <div className="flex flex-wrap gap-4 text-sm text-[#F8FAFC]/50">
-                  {agency.city && <span>📍 {agency.city}</span>}
-                  {agency.email && <span>✉ {agency.email}</span>}
-                  {agency.phone && <span>📞 {agency.phone}</span>}
-                </div>
-                {agency.special_conditions && (
-                  <p className="text-xs text-[#C9A84C]/80 mt-2">{agency.special_conditions}</p>
-                )}
+          <div className="glass-card-gold rounded-xl px-5 py-3 mb-4">
+            {/* Row 1: name + total */}
+            <div className="flex items-center justify-between gap-4 mb-2">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h2 className="text-base font-black text-[#F8FAFC]">{agency.name}</h2>
+                {agency.city && <span className="text-xs text-[#F8FAFC]/40">📍 {agency.city}</span>}
+                {agency.email && <span className="text-xs text-[#F8FAFC]/40">✉ {agency.email}</span>}
+                {agency.phone && <span className="text-xs text-[#F8FAFC]/40">📞 {agency.phone}</span>}
               </div>
-              <div className="text-right">
-                <div className="text-2xl font-black text-[#7B3FBF]">{candidates.length}</div>
-                <div className="text-xs text-[#F8FAFC]/40">кандидатов подано</div>
-                {agency.planned_candidates > 0 && (
-                  <div className="text-xs text-[#F8FAFC]/30">план: {agency.planned_candidates}</div>
-                )}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <span className="text-xl font-black text-[#7B3FBF]">{candidates.length}</span>
+                {agency.planned_candidates > 0 && <span className="text-xs text-[#F8FAFC]/30">/ {agency.planned_candidates}</span>}
+                <span className="text-xs text-[#F8FAFC]/35 ml-1">канд.</span>
               </div>
             </div>
-            {/* По должностям */}
+            {/* Row 2: stats badges */}
             {candidates.length > 0 && (() => {
-              const byPos = {};
+              const byPos   = {};
               candidates.forEach(c => { if (c.position) byPos[c.position] = (byPos[c.position] || 0) + 1; });
-              const bySB = { 'Согласован': candidates.filter(c=>c.sb_check==='Согласован').length, 'Не согласован': candidates.filter(c=>c.sb_check==='Не согласован').length, 'Не проверялся': candidates.filter(c=>!c.sb_check||c.sb_check==='Не проверялся').length };
+              const sbOk    = candidates.filter(c => c.sb_check === 'Согласован').length;
+              const medOk   = candidates.filter(c => c.medical_check === 'Прошёл').length;
+              const both    = candidates.filter(c => c.sb_check === 'Согласован' && c.medical_check === 'Прошёл').length;
+              const ready   = candidates.filter(c => c.payment_basis === 'Готовится к отправке').length;
+              const refused = candidates.filter(c => c.payment_basis === 'Отказался от отправки').length;
               return (
-                <div className="border-t border-[rgba(201,168,76,0.15)] pt-4 grid md:grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-xs text-[#C9A84C]/70 font-bold uppercase tracking-wider mb-2">По должностям</div>
-                    <div className="flex flex-wrap gap-2">
-                      {Object.entries(byPos).map(([pos, cnt]) => (
-                        <span key={pos} className="text-xs px-2.5 py-1 rounded bg-[rgba(123,63,191,0.12)] border border-[rgba(123,63,191,0.2)] text-[#F8FAFC]/70">
-                          {pos}: <span className="text-[#7B3FBF] font-bold">{cnt}</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-[#C9A84C]/70 font-bold uppercase tracking-wider mb-2">По статусу СБ</div>
-                    <div className="flex flex-wrap gap-2">
-                      {Object.entries(bySB).filter(([,v])=>v>0).map(([status, cnt]) => (
-                        <span key={status} className="text-xs px-2.5 py-1 rounded bg-[rgba(201,168,76,0.08)] border border-[rgba(201,168,76,0.15)] text-[#F8FAFC]/60">
-                          {status}: <span className="text-[#C9A84C] font-bold">{cnt}</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+                <div className="border-t border-[rgba(201,168,76,0.12)] pt-2 flex flex-wrap gap-x-4 gap-y-1.5">
+                  {/* Должности */}
+                  {Object.entries(byPos).map(([pos, cnt]) => (
+                    <span key={pos} className="text-xs text-[#F8FAFC]/55">{pos}: <span className="text-[#7B3FBF] font-bold">{cnt}</span></span>
+                  ))}
+                  <span className="text-[rgba(123,63,191,0.25)] text-xs">|</span>
+                  {/* СБ */}
+                  <span className="text-xs text-[#F8FAFC]/50">СБ ✓: <span className="text-green-400 font-bold">{sbOk}</span></span>
+                  {/* Мед */}
+                  <span className="text-xs text-[#F8FAFC]/50">Мед ✓: <span className="text-green-400 font-bold">{medOk}</span></span>
+                  {/* Оба */}
+                  <span className="text-xs text-[#F8FAFC]/50">СБ+Мед: <span className="text-[#C9A84C] font-bold">{both}</span></span>
+                  <span className="text-[rgba(123,63,191,0.25)] text-xs">|</span>
+                  {/* Отправка */}
+                  {ready > 0 && <span className="text-xs text-green-400/80">К отправке: <span className="font-bold">{ready}</span></span>}
+                  {refused > 0 && <span className="text-xs text-red-400/70">Отказ: <span className="font-bold">{refused}</span></span>}
                 </div>
               );
             })()}
@@ -177,14 +182,21 @@ export default function AgencyWorkspace() {
             <div className="w-8 h-8 border-4 border-[#7B3FBF]/30 border-t-[#7B3FBF] rounded-full animate-spin" />
           </div>
         ) : (
-          <div className="glass-card rounded-xl overflow-hidden">
-            <div className="overflow-x-auto">
+          <div className="glass-card rounded-xl overflow-visible">
+            <div className="overflow-x-auto overflow-y-visible">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[rgba(123,63,191,0.15)]">
-                    {['ФИО', 'Должность', 'Гражданство', 'СБ', 'Медкомиссия', 'Дата прибытия', 'Действия'].map(h => (
-                      <th key={h} className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                    ))}
+                    <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider">ФИО</th>
+                    <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider whitespace-nowrap">Должность</th>
+                    <th className="px-4 py-3"><Tooltip text="Город / Пункт сбора"><MapPin size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
+                    <th className="px-4 py-3"><Tooltip text="Проверка СБ"><Shield size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
+                    <th className="px-4 py-3"><Tooltip text="Медкомиссия"><Stethoscope size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
+                    <th className="px-4 py-3"><Tooltip text="Дата прибытия"><CalendarDays size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
+                    <th className="px-4 py-3"><Tooltip text="Основание для выплаты"><Banknote size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
+                    <th className="px-4 py-3"><Tooltip text="Выплачено"><CheckCircle size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
+                    <th className="px-4 py-3"><Tooltip text="Комментарий"><MessageSquare size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
+                    <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider">Действия</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -192,17 +204,40 @@ export default function AgencyWorkspace() {
                     <tr key={c.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(123,63,191,0.06)] transition-colors">
                       <td className="px-4 py-3">
                         <div className="font-bold text-[#F8FAFC]">{c.full_name}</div>
-                        {c.city && <div className="text-xs text-[#F8FAFC]/35">{c.city}</div>}
+                        <div className="text-xs text-[#F8FAFC]/35">{c.city || ''}</div>
                       </td>
                       <td className="px-4 py-3 text-[#F8FAFC]/60 text-xs whitespace-nowrap">{c.position || '—'}</td>
-                      <td className="px-4 py-3 text-[#F8FAFC]/55 text-xs">{c.citizenship || '—'}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-medium ${SB_COLORS[c.sb_check] || 'text-[#F8FAFC]/40'}`}>{c.sb_check || '—'}</span>
+                      <td className="px-4 py-3 text-xs text-[#F8FAFC]/55">
+                        {c.city && <div>{c.city}</div>}
+                        {c.assembly_point && <div className="text-[#F8FAFC]/30">{c.assembly_point}</div>}
+                        {!c.city && !c.assembly_point && '—'}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs font-medium ${MED_COLORS[c.medical_check] || 'text-[#F8FAFC]/40'}`}>{c.medical_check || '—'}</span>
+                        <span className={`text-xs font-medium ${SB_COLORS[c.sb_check] || 'text-[#F8FAFC]/40'}`}>
+                          {c.sb_check === 'Согласован' ? '✓' : c.sb_check === 'Не согласован' ? '✗' : '—'}
+                        </span>
                       </td>
-                      <td className="px-4 py-3 text-xs text-[#F8FAFC]/45">{c.arrival_date || '—'}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-medium ${MED_COLORS[c.medical_check] || 'text-[#F8FAFC]/40'}`}>
+                          {c.medical_check === 'Прошёл' ? '✓' : c.medical_check === 'Не прошёл' ? '✗' : '—'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-[#F8FAFC]/45 whitespace-nowrap">{c.arrival_date || '—'}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs ${PAY_COLORS[c.payment_basis] || 'text-[#F8FAFC]/25'}`}>{c.payment_basis || '—'}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-medium ${c.payment_made === 'Да' ? 'text-green-400' : 'text-[#F8FAFC]/30'}`}>
+                          {c.payment_made === 'Да' ? '✓ Да' : 'Нет'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {c.comment ? (
+                          <Tooltip text={c.comment}>
+                            <MessageSquare size={14} className="text-[#7B3FBF] cursor-help" />
+                          </Tooltip>
+                        ) : <span className="text-[#F8FAFC]/20">—</span>}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <button onClick={() => { setEditCandidate(c); setModalOpen(true); }}
@@ -219,7 +254,7 @@ export default function AgencyWorkspace() {
                   ))}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="text-center py-16 text-[#F8FAFC]/30">
+                      <td colSpan={10} className="text-center py-16 text-[#F8FAFC]/30">
                         <div className="flex flex-col items-center gap-3">
                           <Users size={32} className="text-[#F8FAFC]/15" />
                           <p>Кандидатов пока нет. Добавьте первого!</p>

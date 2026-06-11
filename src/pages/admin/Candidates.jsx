@@ -13,7 +13,7 @@ function Tooltip({ text, children }) {
   return (
     <div className="relative group/tip inline-flex items-center">
       {children}
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded bg-[#0D1B3E] border border-[rgba(123,63,191,0.3)] text-xs text-[#F8FAFC]/80 whitespace-nowrap opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity z-50">
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 rounded bg-[#0D1B3E] border border-[rgba(123,63,191,0.3)] text-xs text-[#F8FAFC]/80 whitespace-nowrap opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity z-[9999] shadow-lg">
         {text}
       </div>
     </div>
@@ -136,20 +136,28 @@ export default function Candidates() {
 
       <div className="max-w-[1400px] mx-auto px-6 py-6">
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          {[
+        {(() => {
+          const readyCount = candidates.filter(c => c.payment_basis === 'Готовится к отправке').length;
+          const paidCount  = candidates.filter(c => c.payment_made === 'Да').length;
+          const stats = [
             { label: 'Всего кандидатов', value: candidates.length },
             { label: 'Согласованы СБ', value: candidates.filter(c => c.sb_check === 'Согласован').length },
             { label: 'Прошли медкомиссию', value: candidates.filter(c => c.medical_check === 'Прошёл').length },
-            { label: 'К отправке', value: candidates.filter(c => c.payment_basis === 'Готовится к отправке').length },
-            { label: 'Выплачено', value: candidates.filter(c => c.payment_made === 'Да').length },
-          ].map(s => (
-            <div key={s.label} className="glass-card rounded-xl p-4">
-              <div className="text-2xl font-black text-[#7B3FBF]">{s.value}</div>
-              <div className="text-xs text-[#F8FAFC]/45 mt-1">{s.label}</div>
+            { label: 'К отправке', value: readyCount },
+            { label: 'Выплачено (чел.)', value: paidCount, sub: `${(paidCount * 100000).toLocaleString('ru-RU')} ₽` },
+          ];
+          return (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+              {stats.map(s => (
+                <div key={s.label} className="glass-card rounded-xl p-4">
+                  <div className="text-2xl font-black text-[#7B3FBF]">{s.value}</div>
+                  <div className="text-xs text-[#F8FAFC]/45 mt-1">{s.label}</div>
+                  {s.sub && <div className="text-xs text-[#C9A84C] font-bold mt-0.5">{s.sub}</div>}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          );
+        })()}
 
         {/* Filters */}
         <div className="flex flex-wrap gap-3 mb-4">
@@ -189,8 +197,8 @@ export default function Candidates() {
         {loading ? (
           <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-[#7B3FBF]/30 border-t-[#7B3FBF] rounded-full animate-spin" /></div>
         ) : (
-          <div className="glass-card rounded-xl overflow-hidden">
-            <div className="overflow-x-auto">
+          <div className="glass-card rounded-xl overflow-visible">
+            <div className="overflow-x-auto overflow-y-visible">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[rgba(123,63,191,0.15)]">
