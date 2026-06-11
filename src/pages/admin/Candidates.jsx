@@ -13,7 +13,7 @@ function Tooltip({ text, children }) {
   return (
     <div className="relative group/tip inline-flex items-center">
       {children}
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 rounded bg-[#0D1B3E] border border-[rgba(123,63,191,0.3)] text-xs text-[#F8FAFC]/80 whitespace-nowrap opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity z-[9999] shadow-lg">
+      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 rounded bg-[#0D1B3E] border border-[rgba(123,63,191,0.3)] text-xs text-[#F8FAFC]/80 whitespace-nowrap opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity z-50 shadow-lg">
         {text}
       </div>
     </div>
@@ -118,11 +118,10 @@ export default function Candidates() {
             <h1 className="text-sm font-bold text-[#F8FAFC]">База кандидатов</h1>
           </div>
           <div className="flex items-center gap-2">
-            <Tooltip text="Пересчитать всю статистику">
-              <button onClick={recalcAll} className="p-2 rounded-lg border border-[rgba(123,63,191,0.2)] text-[#F8FAFC]/50 hover:text-[#7B3FBF] hover:border-[#7B3FBF]/40 transition-all">
-                <RefreshCw size={14} />
-              </button>
-            </Tooltip>
+            <button onClick={load} title="Обновить данные"
+              className="p-2 rounded-lg border border-[rgba(123,63,191,0.2)] text-[#F8FAFC]/50 hover:text-[#7B3FBF] hover:border-[#7B3FBF]/40 transition-all">
+              <RefreshCw size={14} />
+            </button>
             <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 text-xs rounded border border-[rgba(201,168,76,0.3)] text-[#C9A84C] hover:bg-[#C9A84C]/10 transition-all">
               <Download size={14} /> Экспорт CSV
             </button>

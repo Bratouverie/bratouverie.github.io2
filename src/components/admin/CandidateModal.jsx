@@ -166,10 +166,12 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
               <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Город проживания</label>
               <input className={inp} value={form.city} onChange={e => set('city', e.target.value)} placeholder="г. Хабаровск" />
             </div>
-            <div>
-              <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Пункт сбора</label>
-              <input className={inp} value={form.assembly_point} onChange={e => set('assembly_point', e.target.value)} placeholder="г. Хабаровск" />
-            </div>
+            {!isAgencyMode && (
+              <div>
+                <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Пункт сбора</label>
+                <input className={inp} value={form.assembly_point} onChange={e => set('assembly_point', e.target.value)} placeholder="г. Хабаровск" />
+              </div>
+            )}
             <div>
               <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Дата прибытия</label>
               <input className={inp} type="date" value={form.arrival_date} onChange={e => set('arrival_date', e.target.value)} />
