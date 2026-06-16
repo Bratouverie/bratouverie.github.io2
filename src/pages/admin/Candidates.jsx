@@ -1,15 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Download, Search, Trash2, Edit2, X, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, Archive, ArchiveRestore } from 'lucide-react';
+import { Plus, Download, Search, Trash2, Edit2, X, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, Archive, ArchiveRestore, AlertTriangle, ClipboardList } from 'lucide-react';
 import CandidateModal from '../../components/admin/CandidateModal';
+import { findDuplicateIds } from '@/lib/candidateDuplicates';
+import { logCandidateAction } from '@/lib/candidateLogger';
 
 const POSITIONS = ['Разнорабочий','Строитель','Водитель B','Водитель C','Водитель CE','Водитель D','Автослесарь','Инженер связи','Оператор БПЛА','Взрывотехник','Медицинский работник','Охранник'];
 const SB_COLORS  = { 'Не проверялся':'text-[#F8FAFC]/40', 'Согласован':'text-green-400', 'Не согласован':'text-red-400' };
 const MED_COLORS = { 'Не проверялся':'text-[#F8FAFC]/40', 'Прошёл':'text-green-400', 'Не прошёл':'text-red-400' };
 const PAY_COLORS = { 'Готовится к отправке':'text-green-400', 'Отказался от отправки':'text-red-400/70' };
 
-// Кандидат считается "закрытым" и может быть заархивирован если выплата сделана или отказался
 const isArchivable = (c) =>
   c.payment_made === 'Да' || c.payment_basis === 'Отказался от отправки';
 
@@ -33,9 +34,11 @@ export default function Candidates() {
   const [editCandidate, setEditCandidate] = useState(null);
   const [filters, setFilters] = useState({ agency: '', position: '', sb_check: '', medical_check: '' });
   const [showArchive, setShowArchive] = useState(false);
+  const [duplicateIds, setDuplicateIds] = useState(new Set());
+  const [currentUser, setCurrentUser] = useState(null);
   const [searchParams] = useSearchParams();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     const [cand, ag] = await Promise.all([
       base44.entities.Candidate.list('-created_date', 500),
@@ -43,20 +46,47 @@ export default function Candidates() {
     ]);
     const activeAg = ag.filter(a => !a.deleted_at);
     const activeAgIds = new Set(activeAg.map(a => a.id));
-    setCandidates(cand.filter(c => !c.agency_id || activeAgIds.has(c.agency_id)));
+    const filtered = cand.filter(c => !c.agency_id || activeAgIds.has(c.agency_id));
+    setCandidates(filtered);
+    setDuplicateIds(findDuplicateIds(filtered));
     setAgencies(activeAg);
     setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
     load();
+    // Загружаем текущего пользователя для логов
+    base44.auth.me().then(u => setCurrentUser(u)).catch(() => {});
     const agencyParam = searchParams.get('agency');
     if (agencyParam) setFilters(f => ({ ...f, agency: agencyParam }));
+
+    // Периодическая проверка дублей каждые 2 минуты
+    const interval = setInterval(async () => {
+      const cand = await base44.entities.Candidate.list('-created_date', 500);
+      setDuplicateIds(findDuplicateIds(cand));
+      setCandidates(prev => {
+        // Обновляем только если появились/исчезли записи
+        if (prev.length !== cand.length) return cand;
+        return prev;
+      });
+    }, 120000);
+    return () => clearInterval(interval);
   }, []);
 
+  const getActor = () => ({
+    name: currentUser?.full_name || currentUser?.email || 'Администратор',
+    role: 'admin',
+  });
+
   const handleSave = async (data, id) => {
-    if (id) await base44.entities.Candidate.update(id, data);
-    else await base44.entities.Candidate.create(data);
+    if (id) {
+      const old = candidates.find(c => c.id === id);
+      await base44.entities.Candidate.update(id, data);
+      await logCandidateAction({ action: 'update', candidate: { ...data, id }, oldData: old, actor: getActor() });
+    } else {
+      const created = await base44.entities.Candidate.create(data);
+      await logCandidateAction({ action: 'create', candidate: { ...data, id: created?.id }, actor: getActor() });
+    }
     setModalOpen(false);
     setEditCandidate(null);
     load();
@@ -66,6 +96,7 @@ export default function Candidates() {
     if (!confirm('Удалить кандидата?')) return;
     const cand = candidates.find(c => c.id === id);
     await base44.entities.Candidate.delete(id);
+    await logCandidateAction({ action: 'delete', candidate: { ...cand }, actor: getActor() });
     if (cand?.agency_id) {
       const remaining = candidates.filter(c => c.id !== id && c.agency_id === cand.agency_id);
       await base44.entities.Agency.update(cand.agency_id, { candidates_count: remaining.length });
@@ -75,21 +106,25 @@ export default function Candidates() {
 
   const handleArchive = async (c) => {
     await base44.entities.Candidate.update(c.id, { is_archived: true });
+    await logCandidateAction({ action: 'update', candidate: { ...c, is_archived: true }, oldData: c, actor: getActor() });
     setCandidates(prev => prev.map(x => x.id === c.id ? { ...x, is_archived: true } : x));
   };
 
   const handleUnarchive = async (c) => {
     await base44.entities.Candidate.update(c.id, { is_archived: false });
+    await logCandidateAction({ action: 'update', candidate: { ...c, is_archived: false }, oldData: c, actor: getActor() });
     setCandidates(prev => prev.map(x => x.id === c.id ? { ...x, is_archived: false } : x));
   };
 
   const exportCSV = () => {
-    const src = showArchive ? archived : filteredActive;
-    const headers = ['ФИО','Должность','Агентство','Город','Пункт сбора','Дата рождения','Проверка СБ','Медкомиссия','Основание выплаты','Выплачено','Дата прибытия','Комментарий'];
+    const src = showArchive ? filteredArchived : filteredActive;
+    const headers = ['ФИО','Телефон','Должность','Агентство','Город','Пункт сбора','Дата рождения','Проверка СБ','Медкомиссия','Основание выплаты','Выплачено','Дата прибытия','Дата добавления','Комментарий'];
     const rows = src.map(c => [
-      c.full_name, c.position, c.agency_name, c.city, c.assembly_point,
+      c.full_name, c.phone, c.position, c.agency_name, c.city, c.assembly_point,
       c.birth_date, c.sb_check, c.medical_check,
-      c.payment_basis, c.payment_made, c.arrival_date, c.comment
+      c.payment_basis, c.payment_made, c.arrival_date,
+      c.created_date ? new Date(c.created_date).toLocaleString('ru-RU') : '',
+      c.comment
     ]);
     const csv = [headers, ...rows].map(r => r.map(v => `"${v || ''}"`).join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -97,14 +132,13 @@ export default function Candidates() {
     const a = document.createElement('a'); a.href = url; a.download = showArchive ? 'candidates_archive.csv' : 'candidates.csv'; a.click();
   };
 
-  // Разделяем на активных и архивных
   const active   = candidates.filter(c => !c.is_archived);
   const archived = candidates.filter(c => c.is_archived);
 
   const applyFilters = (list) => {
     const q = search.toLowerCase();
     return list.filter(c => {
-      const matchSearch = !q || c.full_name?.toLowerCase().includes(q) || c.position?.toLowerCase().includes(q) || c.city?.toLowerCase().includes(q);
+      const matchSearch = !q || c.full_name?.toLowerCase().includes(q) || c.position?.toLowerCase().includes(q) || c.city?.toLowerCase().includes(q) || c.phone?.includes(q);
       const matchAgency = !filters.agency || c.agency_id === filters.agency;
       const matchPos    = !filters.position || c.position === filters.position;
       const matchSB     = !filters.sb_check || c.sb_check === filters.sb_check;
@@ -120,22 +154,21 @@ export default function Candidates() {
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
   const inp = "px-3 py-2 bg-[rgba(255,255,255,0.04)] border border-[rgba(123,63,191,0.2)] rounded-lg text-sm text-[#F8FAFC] focus:outline-none focus:border-[#7B3FBF]";
 
-  // Статистика только по активным
   const readyCount = active.filter(c => c.payment_basis === 'Готовится к отправке').length;
   const paidCount  = active.filter(c => c.payment_made === 'Да').length;
-  // СБ: согласован, но НЕ прошёл мед, НЕ к отправке, НЕ выплачено
   const sbCount = active.filter(c =>
     c.sb_check === 'Согласован' &&
     c.medical_check !== 'Прошёл' &&
     c.payment_basis !== 'Готовится к отправке' &&
     c.payment_made !== 'Да'
   ).length;
-  // Мед: прошёл, но НЕ к отправке и НЕ выплачено
   const medCount = active.filter(c =>
     c.medical_check === 'Прошёл' &&
     c.payment_basis !== 'Готовится к отправке' &&
     c.payment_made !== 'Да'
   ).length;
+
+  const dupCount = [...duplicateIds].filter(id => active.some(c => c.id === id)).length;
 
   return (
     <div className="min-h-screen bg-[#05070A] text-[#F8FAFC]">
@@ -152,6 +185,10 @@ export default function Candidates() {
             <h1 className="text-sm font-bold text-[#F8FAFC]">База кандидатов</h1>
           </div>
           <div className="flex items-center gap-2">
+            <Link to="/admin/candidate-logs"
+              className="flex items-center gap-2 px-4 py-2 text-xs rounded border border-[rgba(123,63,191,0.25)] text-[#F8FAFC]/50 hover:text-[#7B3FBF] hover:border-[#7B3FBF]/40 transition-all">
+              <ClipboardList size={13}/> Журнал
+            </Link>
             <button onClick={load} title="Обновить данные"
               className="p-2 rounded-lg border border-[rgba(123,63,191,0.2)] text-[#F8FAFC]/50 hover:text-[#7B3FBF] hover:border-[#7B3FBF]/40 transition-all">
               <RefreshCw size={14} />
@@ -176,7 +213,15 @@ export default function Candidates() {
       </div>
 
       <div className="max-w-[1400px] mx-auto px-6 py-6">
-        {/* Stats — только по активным */}
+        {/* Предупреждение о дублях */}
+        {dupCount > 0 && !showArchive && (
+          <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-sm">
+            <AlertTriangle size={15} className="flex-shrink-0"/>
+            <span>Обнаружено <strong>{dupCount}</strong> дублирующих записей — выделены красным в таблице</span>
+          </div>
+        )}
+
+        {/* Stats */}
         {!showArchive && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
             {[
@@ -205,7 +250,7 @@ export default function Candidates() {
         <div className="flex flex-wrap gap-3 mb-4">
           <div className="relative flex-1 min-w-[200px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#F8FAFC]/30" />
-            <input type="text" placeholder="Поиск по ФИО, должности, городу..."
+            <input type="text" placeholder="Поиск по ФИО, должности, городу, телефону..."
               value={search} onChange={e => setSearch(e.target.value)}
               className={inp + ' w-full pl-9'} />
           </div>
@@ -254,84 +299,105 @@ export default function Candidates() {
                     <th className="px-4 py-3"><Tooltip text="Дата прибытия"><CalendarDays size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
                     <th className="px-4 py-3"><Tooltip text="Основание для выплаты"><Banknote size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
                     <th className="px-4 py-3"><Tooltip text="Выплачено"><CheckCircle size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
+                    <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider whitespace-nowrap">Добавлен</th>
                     <th className="px-4 py-3"><Tooltip text="Комментарий"><MessageSquare size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider">Действия</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {displayed.map((c) => (
-                    <tr key={c.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(123,63,191,0.06)] transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="font-bold text-[#F8FAFC]">{c.full_name}</div>
-                        <div className="text-xs text-[#F8FAFC]/35">{c.agency_name || '—'}</div>
-                      </td>
-                      <td className="px-4 py-3 text-[#F8FAFC]/60 text-xs whitespace-nowrap">{c.position || '—'}</td>
-                      <td className="px-4 py-3 text-xs text-[#F8FAFC]/55">
-                        {c.city && <div>{c.city}</div>}
-                        {c.assembly_point && <div className="text-[#F8FAFC]/30">{c.assembly_point}</div>}
-                        {!c.city && !c.assembly_point && '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-medium ${SB_COLORS[c.sb_check] || 'text-[#F8FAFC]/40'}`}>
-                          {c.sb_check === 'Согласован' ? '✓' : c.sb_check === 'Не согласован' ? '✗' : '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-medium ${MED_COLORS[c.medical_check] || 'text-[#F8FAFC]/40'}`}>
-                          {c.medical_check === 'Прошёл' ? '✓' : c.medical_check === 'Не прошёл' ? '✗' : '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-[#F8FAFC]/45 whitespace-nowrap">
-                        {c.arrival_date ? c.arrival_date.split('-').reverse().join('.') : '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs ${PAY_COLORS[c.payment_basis] || 'text-[#F8FAFC]/25'}`}>
-                          {c.payment_basis || '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-medium ${c.payment_made === 'Да' ? 'text-green-400' : 'text-[#F8FAFC]/30'}`}>
-                          {c.payment_made === 'Да' ? '✓ Да' : 'Нет'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {c.comment ? (
-                          <Tooltip text={c.comment}>
-                            <MessageSquare size={14} className="text-[#7B3FBF] cursor-help" />
-                          </Tooltip>
-                        ) : <span className="text-[#F8FAFC]/20">—</span>}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          {showArchive ? (
-                            <button onClick={() => handleUnarchive(c)} title="Вернуть из архива"
-                              className="p-1.5 rounded hover:bg-green-500/20 text-[#F8FAFC]/50 hover:text-green-400 transition-all">
-                              <ArchiveRestore size={14}/>
-                            </button>
-                          ) : (
-                            <>
-                              <button onClick={() => { setEditCandidate(c); setModalOpen(true); }}
-                                className="p-1.5 rounded hover:bg-[#7B3FBF]/20 text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-all">
-                                <Edit2 size={14}/>
+                  {displayed.map((c) => {
+                    const isDuplicate = duplicateIds.has(c.id);
+                    const rowClass = isDuplicate
+                      ? 'border-b border-red-500/30 bg-red-500/8 hover:bg-red-500/12 transition-colors'
+                      : 'border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(123,63,191,0.06)] transition-colors';
+                    return (
+                      <tr key={c.id} className={rowClass}>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5">
+                            {isDuplicate && (
+                              <Tooltip text="Дубль: кандидат с таким ФИО и датой рождения уже есть в базе">
+                                <AlertTriangle size={13} className="text-red-400 flex-shrink-0"/>
+                              </Tooltip>
+                            )}
+                            <div>
+                              <div className={`font-bold ${isDuplicate ? 'text-red-300' : 'text-[#F8FAFC]'}`}>{c.full_name}</div>
+                              <div className="text-xs text-[#F8FAFC]/35">{c.agency_name || '—'}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-[#F8FAFC]/60 text-xs whitespace-nowrap">{c.position || '—'}</td>
+                        <td className="px-4 py-3 text-xs text-[#F8FAFC]/55">
+                          {c.city && <div>{c.city}</div>}
+                          {c.assembly_point && <div className="text-[#F8FAFC]/30">{c.assembly_point}</div>}
+                          {!c.city && !c.assembly_point && '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs font-medium ${SB_COLORS[c.sb_check] || 'text-[#F8FAFC]/40'}`}>
+                            {c.sb_check === 'Согласован' ? '✓' : c.sb_check === 'Не согласован' ? '✗' : '—'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs font-medium ${MED_COLORS[c.medical_check] || 'text-[#F8FAFC]/40'}`}>
+                            {c.medical_check === 'Прошёл' ? '✓' : c.medical_check === 'Не прошёл' ? '✗' : '—'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-[#F8FAFC]/45 whitespace-nowrap">
+                          {c.arrival_date ? c.arrival_date.split('-').reverse().join('.') : '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs ${PAY_COLORS[c.payment_basis] || 'text-[#F8FAFC]/25'}`}>
+                            {c.payment_basis || '—'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs font-medium ${c.payment_made === 'Да' ? 'text-green-400' : 'text-[#F8FAFC]/30'}`}>
+                            {c.payment_made === 'Да' ? '✓ Да' : 'Нет'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-[#F8FAFC]/40 whitespace-nowrap">
+                          {c.created_date
+                            ? new Date(c.created_date).toLocaleDateString('ru-RU') + ' ' + new Date(c.created_date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          {c.comment ? (
+                            <Tooltip text={c.comment}>
+                              <MessageSquare size={14} className="text-[#7B3FBF] cursor-help" />
+                            </Tooltip>
+                          ) : <span className="text-[#F8FAFC]/20">—</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1">
+                            {showArchive ? (
+                              <button onClick={() => handleUnarchive(c)} title="Вернуть из архива"
+                                className="p-1.5 rounded hover:bg-green-500/20 text-[#F8FAFC]/50 hover:text-green-400 transition-all">
+                                <ArchiveRestore size={14}/>
                               </button>
-                              {isArchivable(c) && (
-                                <button onClick={() => handleArchive(c)} title="Переместить в архив"
-                                  className="p-1.5 rounded hover:bg-[#C9A84C]/20 text-[#F8FAFC]/50 hover:text-[#C9A84C] transition-all">
-                                  <Archive size={14}/>
+                            ) : (
+                              <>
+                                <button onClick={() => { setEditCandidate(c); setModalOpen(true); }}
+                                  className="p-1.5 rounded hover:bg-[#7B3FBF]/20 text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-all">
+                                  <Edit2 size={14}/>
                                 </button>
-                              )}
-                            </>
-                          )}
-                          <button onClick={() => handleDelete(c.id)}
-                            className="p-1.5 rounded hover:bg-red-500/20 text-[#F8FAFC]/50 hover:text-red-400 transition-all">
-                            <Trash2 size={14}/>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                                {isArchivable(c) && (
+                                  <button onClick={() => handleArchive(c)} title="Переместить в архив"
+                                    className="p-1.5 rounded hover:bg-[#C9A84C]/20 text-[#F8FAFC]/50 hover:text-[#C9A84C] transition-all">
+                                    <Archive size={14}/>
+                                  </button>
+                                )}
+                              </>
+                            )}
+                            <button onClick={() => handleDelete(c.id)}
+                              className="p-1.5 rounded hover:bg-red-500/20 text-[#F8FAFC]/50 hover:text-red-400 transition-all">
+                              <Trash2 size={14}/>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {displayed.length === 0 && (
-                    <tr><td colSpan={10} className="text-center py-12 text-[#F8FAFC]/30">
+                    <tr><td colSpan={11} className="text-center py-12 text-[#F8FAFC]/30">
                       {showArchive ? 'Архив пуст' : 'Кандидаты не найдены'}
                     </td></tr>
                   )}

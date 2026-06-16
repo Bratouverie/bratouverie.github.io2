@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Plus, Edit2, Trash2, LogOut, Building2, Users, Search, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, X } from 'lucide-react';
 import CandidateModal from '../components/admin/CandidateModal';
+import { logCandidateAction } from '@/lib/candidateLogger';
 
 const POSITIONS = ['Разнорабочий','Строитель','Водитель B','Водитель C','Водитель CE','Водитель D','Автослесарь','Инженер связи','Оператор БПЛА','Взрывотехник','Медицинский работник','Охранник'];
 const SB_COLORS  = { 'Не проверялся': 'text-[#F8FAFC]/40', 'Согласован': 'text-green-400', 'Не согласован': 'text-red-400' };
@@ -58,10 +59,22 @@ export default function AgencyWorkspace() {
     navigate('/agency-login', { replace: true });
   };
 
+  const getActor = () => ({
+    name: session.name,
+    role: 'agency',
+    agency_name: session.name,
+  });
+
   const handleSave = async (data, id) => {
     const dataWithAgency = { ...data, agency_id: session.id, agency_name: session.name };
-    if (id) await base44.entities.Candidate.update(id, dataWithAgency);
-    else await base44.entities.Candidate.create(dataWithAgency);
+    if (id) {
+      const old = candidates.find(c => c.id === id);
+      await base44.entities.Candidate.update(id, dataWithAgency);
+      await logCandidateAction({ action: 'update', candidate: { ...dataWithAgency, id }, oldData: old, actor: getActor() });
+    } else {
+      const created = await base44.entities.Candidate.create(dataWithAgency);
+      await logCandidateAction({ action: 'create', candidate: { ...dataWithAgency, id: created?.id }, actor: getActor() });
+    }
     setModalOpen(false);
     setEditCandidate(null);
     load();
@@ -69,7 +82,9 @@ export default function AgencyWorkspace() {
 
   const handleDelete = async (id) => {
     if (!confirm('Удалить кандидата?')) return;
+    const cand = candidates.find(c => c.id === id);
     await base44.entities.Candidate.delete(id);
+    await logCandidateAction({ action: 'delete', candidate: { ...cand }, actor: getActor() });
     setCandidates(prev => prev.filter(c => c.id !== id));
   };
 

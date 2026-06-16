@@ -21,6 +21,7 @@ import AgencyWorkspace from './pages/AgencyWorkspace';
 // Protected pages
 import Agencies from './pages/admin/Agencies';
 import Candidates from './pages/admin/Candidates';
+import CandidateLogs from './pages/admin/CandidateLogs';
 import Users from './pages/admin/Users';
 
 function App() {
@@ -48,6 +49,7 @@ function App() {
             <Route element={<ProtectedRoute />}>
               <Route path="/admin/agencies" element={<Agencies />} />
               <Route path="/admin/candidates" element={<Candidates />} />
+              <Route path="/admin/candidate-logs" element={<CandidateLogs />} />
             </Route>
 
             {/* Admin-only routes */}
