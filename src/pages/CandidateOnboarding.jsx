@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { CheckCircle, AlertCircle, Loader2, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader2, ExternalLink, ChevronDown, ChevronUp, Info } from 'lucide-react';
 
 const POSITIONS = ['Разнорабочий','Строитель','Водитель B','Водитель C','Водитель CE','Водитель D','Автослесарь','Инженер связи','Оператор БПЛА','Взрывотехник','Медицинский работник','Охранник'];
-
 const EDUCATION_LEVELS = ['Среднее','Среднее специальное','Неполное высшее','Высшее','Несколько высших'];
 const FAMILY_STATUSES = ['Холост/Не замужем','Женат/Замужем','Разведён/Разведена','Вдовец/Вдова'];
 const MILITARY_RANKS = ['Рядовой','Ефрейтор','Младший сержант','Сержант','Старший сержант','Старшина','Прапорщик','Офицер','Не служил'];
 
-// Навыки по должностям
+const CITIZENSHIPS = ['РФ','РБ','Казахстан','Узбекистан','Таджикистан','Киргизия','Туркменистан','Азербайджан','Армения','Молдова','Украина'];
+
 const SKILLS_BY_POSITION = {
   'Разнорабочий': ['Физическая выносливость','Работа с инструментом','Погрузо-разгрузочные работы','Уборка территории','Работа на высоте','Перенос тяжестей','Работа в команде'],
   'Строитель': ['Бетонные работы','Кирпичная кладка','Штукатурные работы','Работа с инструментом','Сварочные работы','Работа на высоте','Чтение чертежей','Арматурные работы','Опалубочные работы'],
@@ -24,7 +24,6 @@ const SKILLS_BY_POSITION = {
   'Медицинский работник': ['Первая медицинская помощь','Введение инъекций','Перевязочные работы','Транспортировка пострадавших','Работа с медоборудованием','Ведение медицинской документации','Реанимационные мероприятия'],
   'Охранник': ['Охрана порядка','Физическая подготовка','Работа с оружием','Видеонаблюдение','Оформление документов','Работа в ЧС','Тактика охраны','Знание законодательства'],
 };
-
 const DEFAULT_SKILLS = ['Работа в команде','Физическая выносливость','Работа с документами','Знание ПК'];
 
 const DOCS_READY = [
@@ -54,7 +53,6 @@ const EMPTY_FORM = {
   consent_given: false,
 };
 
-// Маппинг всех полей карточки -> форма (правильное соответствие)
 function prefillFromCandidate(cand) {
   return {
     full_name: cand?.full_name || '',
@@ -69,7 +67,6 @@ function prefillFromCandidate(cand) {
   };
 }
 
-// Маппинг всех полей формы из сохранённой записи CandidateForm
 function prefillFromRecord(rec, cand) {
   return {
     full_name: rec.full_name || cand?.full_name || '',
@@ -121,14 +118,27 @@ function prefillFromRecord(rec, cand) {
 function Section({ title, children, defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="bg-white/3 border border-white/8 rounded-2xl overflow-hidden">
+    <div className="bg-[#111] border border-[#2a2a2a] rounded-lg overflow-hidden">
       <button type="button" onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-5 py-4 text-left">
-        <span className="text-sm font-bold text-[#7B3FBF] uppercase tracking-widest">{title}</span>
-        {open ? <ChevronUp size={16} className="text-white/30" /> : <ChevronDown size={16} className="text-white/30" />}
+        className="w-full flex items-center justify-between px-5 py-3.5 text-left bg-[#181818] border-b border-[#2a2a2a]">
+        <span className="text-sm font-bold text-[#ccc] uppercase tracking-widest">{title}</span>
+        {open ? <ChevronUp size={15} className="text-[#666]" /> : <ChevronDown size={15} className="text-[#666]" />}
       </button>
-      {open && <div className="px-5 pb-5 space-y-4">{children}</div>}
+      {open && <div className="px-5 pb-5 pt-4 space-y-4">{children}</div>}
     </div>
+  );
+}
+
+// Строгий чекбокс «то же самое»
+function SameAsCheckbox({ label, checked, onChange }) {
+  return (
+    <label className="flex items-center gap-2 cursor-pointer mt-1.5 w-fit">
+      <div onClick={onChange}
+        className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-all ${checked ? 'bg-[#555] border-[#888]' : 'border-[#444] bg-transparent hover:border-[#666]'}`}>
+        {checked && <CheckCircle size={10} className="text-white" />}
+      </div>
+      <span className="text-xs text-[#666] select-none">{label}</span>
+    </label>
   );
 }
 
@@ -145,6 +155,9 @@ export default function CandidateOnboarding() {
   const [submitting, setSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [birthPlaceSameAsCity, setBirthPlaceSameAsCity] = useState(false);
+  const [actualSameAsReg, setActualSameAsReg] = useState(false);
+  const [showAssemblyTip, setShowAssemblyTip] = useState(false);
 
   useEffect(() => {
     const loadForm = async () => {
@@ -152,17 +165,19 @@ export default function CandidateOnboarding() {
       if (!records.length) { setNotFound(true); setLoading(false); return; }
       const rec = records[0];
       setFormRecord(rec);
-
       const cands = await base44.entities.Candidate.filter({ id: rec.candidate_id });
       const cand = cands[0] || null;
       setCandidate(cand);
-
       if (rec.status === 'completed') {
-        setForm({ ...EMPTY_FORM, ...prefillFromRecord(rec, cand) });
+        const filled = prefillFromRecord(rec, cand);
+        setForm({ ...EMPTY_FORM, ...filled });
+        if (filled.actual_address === filled.registration_address && filled.registration_address) setActualSameAsReg(true);
+        if (filled.birth_place === filled.city && filled.city) setBirthPlaceSameAsCity(true);
         setIsEditing(editMode);
         setSubmitted(!editMode);
       } else {
-        setForm({ ...EMPTY_FORM, ...prefillFromCandidate(cand) });
+        const filled = prefillFromCandidate(cand);
+        setForm({ ...EMPTY_FORM, ...filled });
         setIsEditing(true);
       }
       setLoading(false);
@@ -170,14 +185,20 @@ export default function CandidateOnboarding() {
     loadForm();
   }, [token, editMode]);
 
-  const toggleArr = (key, val) => {
-    setForm(f => ({
-      ...f,
-      [key]: f[key].includes(val) ? f[key].filter(s => s !== val) : [...f[key], val],
-    }));
+  const toggleArr = (key, val) => setForm(f => ({ ...f, [key]: f[key].includes(val) ? f[key].filter(s => s !== val) : [...f[key], val] }));
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleBirthPlaceSameToggle = () => {
+    const next = !birthPlaceSameAsCity;
+    setBirthPlaceSameAsCity(next);
+    if (next) set('birth_place', form.city);
   };
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const handleActualSameToggle = () => {
+    const next = !actualSameAsReg;
+    setActualSameAsReg(next);
+    if (next) set('actual_address', form.registration_address);
+  };
 
   const currentSkills = SKILLS_BY_POSITION[form.position] || DEFAULT_SKILLS;
 
@@ -189,10 +210,8 @@ export default function CandidateOnboarding() {
     }
     setSubmitting(true);
     const now = new Date().toISOString();
-
     const saveData = { ...form, consent_timestamp: now, submitted_at: now, status: 'completed' };
     await base44.entities.CandidateForm.update(formRecord.id, saveData);
-
     if (formRecord.candidate_id) {
       await base44.entities.Candidate.update(formRecord.candidate_id, {
         full_name: form.full_name,
@@ -209,90 +228,63 @@ export default function CandidateOnboarding() {
         form_submitted_at: now,
       });
     }
-
-    // Отправка уведомлений
     try {
       const agencyName = candidate?.agency_name || 'Агентство';
-      const candidateName = form.full_name;
-      const subject = `Анкета заполнена: ${candidateName}`;
-      const body = `Кандидат ${candidateName} заполнил анкету.\n\nАгентство: ${agencyName}\nДолжность: ${form.position || '—'}\nТелефон: ${form.phone}\nEmail: ${form.email || '—'}\n\nПросмотреть анкету: ${window.location.origin}/form/${token}?edit=1`;
-
-      // Получаем emails из базы (агентство + администраторы)
+      const subject = `Анкета заполнена: ${form.full_name}`;
+      const body = `Кандидат ${form.full_name} заполнил анкету.\n\nАгентство: ${agencyName}\nДолжность: ${form.position || '—'}\nТелефон: ${form.phone}\nEmail: ${form.email || '—'}\n\nПросмотреть: ${window.location.origin}/form/${token}?edit=1`;
       const emailPromises = [];
-
-      // Email агентства
       if (candidate?.agency_id) {
         const agencies = await base44.entities.Agency.filter({ id: candidate.agency_id });
-        if (agencies[0]?.email) {
-          emailPromises.push(
-            base44.integrations.Core.SendEmail({ to: agencies[0].email, subject, body, from_name: 'Bratouveriye SNB' })
-          );
-        }
-        if (agencies[0]?.manager_email) {
-          emailPromises.push(
-            base44.integrations.Core.SendEmail({ to: agencies[0].manager_email, subject, body, from_name: 'Bratouveriye SNB' })
-          );
-        }
+        if (agencies[0]?.email) emailPromises.push(base44.integrations.Core.SendEmail({ to: agencies[0].email, subject, body, from_name: 'Bratouveriye SNB' }));
+        if (agencies[0]?.manager_email) emailPromises.push(base44.integrations.Core.SendEmail({ to: agencies[0].manager_email, subject, body, from_name: 'Bratouveriye SNB' }));
       }
-
-      // Администраторы
       const admins = await base44.entities.User.filter({ role: 'admin' });
-      admins.forEach(admin => {
-        if (admin.email) {
-          emailPromises.push(
-            base44.integrations.Core.SendEmail({ to: admin.email, subject, body, from_name: 'Bratouveriye SNB' })
-          );
-        }
-      });
-
+      admins.forEach(admin => { if (admin.email) emailPromises.push(base44.integrations.Core.SendEmail({ to: admin.email, subject, body, from_name: 'Bratouveriye SNB' })); });
       await Promise.allSettled(emailPromises);
-    } catch (err) {
-      // Уведомление не критично — не блокируем сохранение
-    }
-
+    } catch (_) {}
     setFormRecord(prev => ({ ...prev, submitted_at: now, status: 'completed' }));
     setSubmitted(true);
     setIsEditing(false);
     setSubmitting(false);
   };
 
-  const inp = "w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-[#7B3FBF] transition-all";
-  const lbl = "block text-xs text-white/45 mb-1.5 font-medium";
+  // Строгий рабочий стиль
+  const inp = "w-full bg-[#1a1a1a] border border-[#333] rounded px-3 py-2.5 text-sm text-[#e0e0e0] placeholder:text-[#444] focus:outline-none focus:border-[#666] transition-colors";
+  const inpRO = "w-full bg-[#141414] border border-[#2a2a2a] rounded px-3 py-2.5 text-sm text-[#555] cursor-not-allowed";
+  const lbl = "block text-xs font-semibold text-[#888] mb-1.5 uppercase tracking-wide";
 
   if (loading) return (
-    <div className="min-h-screen bg-[#05070A] flex items-center justify-center">
-      <Loader2 size={32} className="animate-spin text-[#7B3FBF]" />
+    <div className="min-h-screen bg-[#0e0e0e] flex items-center justify-center">
+      <Loader2 size={28} className="animate-spin text-[#666]" />
     </div>
   );
 
   if (notFound) return (
-    <div className="min-h-screen bg-[#05070A] flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[#0e0e0e] flex items-center justify-center px-4">
       <div className="text-center">
-        <AlertCircle size={48} className="text-red-400 mx-auto mb-4" />
-        <h1 className="text-xl font-bold text-white mb-2">Анкета не найдена</h1>
-        <p className="text-white/40 text-sm">Ссылка недействительна или устарела.</p>
+        <AlertCircle size={40} className="text-red-500 mx-auto mb-4" />
+        <h1 className="text-lg font-bold text-white mb-2">Анкета не найдена</h1>
+        <p className="text-[#666] text-sm">Ссылка недействительна или устарела.</p>
       </div>
     </div>
   );
 
   if (submitted && !isEditing) return (
-    <div className="min-h-screen bg-[#05070A] flex items-center justify-center px-4">
-      <div className="text-center max-w-md">
-        <div className="w-20 h-20 rounded-full bg-green-500/15 flex items-center justify-center mx-auto mb-5">
-          <CheckCircle size={40} className="text-green-400" />
+    <div className="min-h-screen bg-[#0e0e0e] flex items-center justify-center px-4">
+      <div className="text-center max-w-sm">
+        <div className="w-16 h-16 rounded-full bg-green-900/40 border border-green-700/50 flex items-center justify-center mx-auto mb-5">
+          <CheckCircle size={32} className="text-green-500" />
         </div>
-        <h1 className="text-2xl font-black text-white mb-3">Анкета успешно отправлена</h1>
-        <p className="text-white/50 text-sm leading-relaxed">
-          Ваши данные получены и переданы кадровому агентству для обработки.<br />
+        <h1 className="text-xl font-bold text-white mb-3">Анкета отправлена</h1>
+        <p className="text-[#888] text-sm leading-relaxed">
+          Данные получены и переданы в кадровый отдел.<br />
           Согласие на обработку персональных данных подтверждено.
         </p>
         {formRecord?.submitted_at && (
-          <p className="text-white/25 text-xs mt-4">
-            Отправлено: {new Date(formRecord.submitted_at).toLocaleString('ru-RU')}
-          </p>
+          <p className="text-[#555] text-xs mt-4">Отправлено: {new Date(formRecord.submitted_at).toLocaleString('ru-RU')}</p>
         )}
         <button onClick={() => { setSubmitted(false); setIsEditing(true); }}
-          className="mt-6 px-5 py-2.5 rounded-xl border border-white/10 text-sm text-white/50 hover:text-white/80 hover:border-white/20 transition-all">
+          className="mt-5 px-5 py-2.5 rounded border border-[#333] text-sm text-[#888] hover:text-[#ccc] hover:border-[#555] transition-colors">
           Редактировать анкету
         </button>
       </div>
@@ -300,70 +292,108 @@ export default function CandidateOnboarding() {
   );
 
   return (
-    <div className="min-h-screen bg-[#05070A] text-white py-10 px-4">
+    <div className="min-h-screen bg-[#0e0e0e] text-[#e0e0e0] py-8 px-4">
       <div className="max-w-2xl mx-auto">
-        <div className="text-center mb-8">
-          <img src="https://media.base44.com/images/public/user_69f4a60c5f6a1719d380566c/86d4247bb_2_2.png"
-            className="w-12 h-12 object-contain mx-auto mb-4" alt="logo" />
-          <h1 className="text-2xl font-black mb-1">Анкета кандидата</h1>
-          <p className="text-white/35 text-xs">ООО «Братоуверие-СНБ» · Программа восстановления ЛНР и ДНР</p>
+        {/* Шапка */}
+        <div className="mb-8 pb-6 border-b border-[#222]">
+          <div className="flex items-center gap-3 mb-3">
+            <img src="https://media.base44.com/images/public/user_69f4a60c5f6a1719d380566c/86d4247bb_2_2.png"
+              className="w-9 h-9 object-contain" alt="logo" />
+            <div>
+              <h1 className="text-lg font-bold text-white leading-tight">Анкета кандидата</h1>
+              <p className="text-[#555] text-xs">ООО «Братоуверие-СНБ» · Программа восстановления ЛНР и ДНР</p>
+            </div>
+          </div>
           {candidate?.agency_name && (
-            <p className="text-white/40 text-sm mt-1">Агентство: <span className="text-[#7B3FBF]">{candidate.agency_name}</span></p>
+            <p className="text-[#666] text-sm">Агентство: <span className="text-[#aaa]">{candidate.agency_name}</span></p>
           )}
           {formRecord?.status === 'completed' && (
-            <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-xs text-green-400">
-              <CheckCircle size={12} /> Анкета заполнена — режим редактирования
+            <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded border border-green-800/60 bg-green-900/20 text-xs text-green-500">
+              <CheckCircle size={11} /> Анкета заполнена — режим редактирования
             </div>
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3">
 
           {/* РАЗДЕЛ 1 */}
           <Section title="Раздел 1. Персональные данные">
             <div>
-              <label className={lbl}>ФИО <span className="text-red-400">*</span></label>
+              <label className={lbl}>ФИО <span className="text-red-500">*</span></label>
               <input className={inp} value={form.full_name} onChange={e => set('full_name', e.target.value)} placeholder="Иванов Иван Иванович" required />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={lbl}>Дата рождения <span className="text-red-400">*</span></label>
+                <label className={lbl}>Дата рождения <span className="text-red-500">*</span></label>
                 <input className={inp} type="date" value={form.birth_date} onChange={e => set('birth_date', e.target.value)} required />
               </div>
               <div>
                 <label className={lbl}>Гражданство</label>
-                <input className={inp} value={form.citizenship} onChange={e => set('citizenship', e.target.value)} placeholder="РФ" />
+                <select className={inp} value={form.citizenship} onChange={e => set('citizenship', e.target.value)}>
+                  {CITIZENSHIPS.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
               </div>
             </div>
+
+            {/* Город проживания — первый, чтобы на него можно было сослаться */}
+            <div>
+              <label className={lbl}>Город проживания</label>
+              <input className={inp} value={form.city} onChange={e => { set('city', e.target.value); if (birthPlaceSameAsCity) set('birth_place', e.target.value); }} placeholder="г. Хабаровск" />
+            </div>
+
             <div>
               <label className={lbl}>Место рождения</label>
-              <input className={inp} value={form.birth_place} onChange={e => set('birth_place', e.target.value)} placeholder="г. Москва" />
+              <input className={inp} value={form.birth_place}
+                onChange={e => { set('birth_place', e.target.value); setBirthPlaceSameAsCity(false); }}
+                placeholder="г. Москва"
+                disabled={birthPlaceSameAsCity} />
+              <SameAsCheckbox label="Совпадает с городом проживания" checked={birthPlaceSameAsCity} onChange={handleBirthPlaceSameToggle} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={lbl}>Город проживания</label>
-                <input className={inp} value={form.city} onChange={e => set('city', e.target.value)} placeholder="г. Хабаровск" />
-              </div>
-              <div>
-                <label className={lbl}>Пункт сбора</label>
-                <input className={inp} value={form.assembly_point} onChange={e => set('assembly_point', e.target.value)} placeholder="г. Хабаровск" />
-              </div>
-            </div>
+
             <div>
-              <label className={lbl}>Адрес регистрации</label>
-              <input className={inp} value={form.registration_address} onChange={e => set('registration_address', e.target.value)} placeholder="г. Хабаровск, ул. Примерная, д. 1, кв. 1" />
+              <label className={lbl}>Адрес регистрации (прописка)</label>
+              <input className={inp} value={form.registration_address}
+                onChange={e => { set('registration_address', e.target.value); if (actualSameAsReg) set('actual_address', e.target.value); }}
+                placeholder="г. Хабаровск, ул. Примерная, д. 1, кв. 1" />
             </div>
             <div>
               <label className={lbl}>Фактический адрес проживания</label>
-              <input className={inp} value={form.actual_address} onChange={e => set('actual_address', e.target.value)} placeholder="Если отличается от регистрации" />
-            </div>
-            <div>
-              <label className={lbl}>Запланированная дата прибытия</label>
-              <input className={inp} type="date" value={form.arrival_date} onChange={e => set('arrival_date', e.target.value)} />
+              <input className={inp} value={form.actual_address}
+                onChange={e => { set('actual_address', e.target.value); setActualSameAsReg(false); }}
+                placeholder="Если отличается от прописки"
+                disabled={actualSameAsReg} />
+              <SameAsCheckbox label="Совпадает с адресом регистрации" checked={actualSameAsReg} onChange={handleActualSameToggle} />
             </div>
 
-            <div className="pt-4 border-t border-white/6">
-              <p className="text-xs font-bold text-white/50 uppercase tracking-widest mb-3">Паспорт гражданина РФ</p>
+            {/* Пункт сбора + Дата прибытия — визуально связаны */}
+            <div className="bg-[#161616] border border-[#2a2a2a] rounded-lg p-4 space-y-3">
+              <p className="text-xs text-[#555] uppercase tracking-wide font-semibold">Место и дата прибытия</p>
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <label className={lbl + ' mb-0'}>Пункт сбора</label>
+                  <div className="relative">
+                    <button type="button" onMouseEnter={() => setShowAssemblyTip(true)} onMouseLeave={() => setShowAssemblyTip(false)}
+                      onTouchStart={() => setShowAssemblyTip(v => !v)} className="text-[#555] hover:text-[#888] transition-colors">
+                      <Info size={13} />
+                    </button>
+                    {showAssemblyTip && (
+                      <div className="absolute left-0 top-5 z-20 w-64 bg-[#1e1e1e] border border-[#333] rounded p-3 text-xs text-[#aaa] leading-relaxed shadow-xl">
+                        Ближайший пункт сбора (место прохождения медкомиссии) будет определён после согласования кандидатуры.
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <input className={inpRO} value={form.assembly_point || 'Будет определён после согласования'} readOnly />
+              </div>
+              <div>
+                <label className={lbl}>Запланированная дата прибытия <span className="text-[#555] font-normal normal-case tracking-normal">— укажите дату</span></label>
+                <input className={inp} type="date" value={form.arrival_date} onChange={e => set('arrival_date', e.target.value)} />
+              </div>
+            </div>
+
+            {/* Паспорт */}
+            <div className="pt-3 border-t border-[#222]">
+              <p className="text-xs font-semibold text-[#666] uppercase tracking-wide mb-3">Паспорт гражданина РФ</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={lbl}>Серия</label>
@@ -388,11 +418,12 @@ export default function CandidateOnboarding() {
               </div>
             </div>
 
-            <div className="pt-4 border-t border-white/6">
-              <p className="text-xs font-bold text-white/50 uppercase tracking-widest mb-3">Контактные данные</p>
-              <div className="grid grid-cols-1 gap-3">
+            {/* Контакты */}
+            <div className="pt-3 border-t border-[#222]">
+              <p className="text-xs font-semibold text-[#666] uppercase tracking-wide mb-3">Контактные данные</p>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={lbl}>Телефон <span className="text-red-400">*</span></label>
+                  <label className={lbl}>Телефон <span className="text-red-500">*</span></label>
                   <input className={inp} type="tel" value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+7 (___) ___-__-__" required />
                 </div>
                 <div>
@@ -435,15 +466,15 @@ export default function CandidateOnboarding() {
             </div>
             <div>
               <label className={lbl}>Дополнительные допуски и сертификаты</label>
-              <textarea className={inp + ' resize-none'} rows={2} value={form.additional_certs} onChange={e => set('additional_certs', e.target.value)} placeholder="Удостоверение сварщика, водительские права категории C, допуск к работе на высоте..." />
+              <textarea className={inp + ' resize-none'} rows={2} value={form.additional_certs} onChange={e => set('additional_certs', e.target.value)} placeholder="Удостоверение сварщика, права категории C, допуск к работе на высоте..." />
             </div>
             <div>
               <label className={lbl}>Профессиональные навыки{form.position ? ` — ${form.position}` : ''}</label>
-              {!form.position && <p className="text-xs text-white/30 mb-2">Выберите должность выше для персонализированного списка навыков</p>}
+              {!form.position && <p className="text-xs text-[#555] mb-2">Выберите должность для персонализированного списка</p>}
               <div className="flex flex-wrap gap-2 mt-1">
                 {currentSkills.map(skill => (
                   <button key={skill} type="button" onClick={() => toggleArr('skills', skill)}
-                    className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${form.skills.includes(skill) ? 'bg-[#7B3FBF]/30 border-[#7B3FBF]/60 text-[#C9A84C]' : 'bg-white/4 border-white/10 text-white/50 hover:border-white/25'}`}>
+                    className={`px-3 py-1.5 rounded text-xs transition-colors border ${form.skills.includes(skill) ? 'bg-[#333] border-[#555] text-white' : 'bg-transparent border-[#2a2a2a] text-[#666] hover:border-[#444] hover:text-[#999]'}`}>
                     {skill}
                   </button>
                 ))}
@@ -455,7 +486,7 @@ export default function CandidateOnboarding() {
           <Section title="Раздел 3. Опыт работы вахтовым методом">
             <div>
               <label className={lbl}>Общий опыт работы</label>
-              <textarea className={inp + ' resize-none'} rows={4} value={form.work_experience} onChange={e => set('work_experience', e.target.value)} placeholder="Укажите последние места работы: организация, должность, период работы, причина увольнения..." />
+              <textarea className={inp + ' resize-none'} rows={4} value={form.work_experience} onChange={e => set('work_experience', e.target.value)} placeholder="Укажите последние места работы: организация, должность, период, причина увольнения..." />
             </div>
             <div>
               <label className={lbl}>Опыт работы вахтовым методом</label>
@@ -474,7 +505,7 @@ export default function CandidateOnboarding() {
               <input className={inp} value={form.disabilities} onChange={e => set('disabilities', e.target.value)} placeholder="Нет / укажите при наличии" />
             </div>
             <div>
-              <label className={lbl}>Дополнительные сведения о состоянии здоровья</label>
+              <label className={lbl}>Дополнительные сведения</label>
               <textarea className={inp + ' resize-none'} rows={2} value={form.health_notes} onChange={e => set('health_notes', e.target.value)} placeholder="Аллергии, особые требования к условиям труда..." />
             </div>
           </Section>
@@ -494,9 +525,9 @@ export default function CandidateOnboarding() {
                 <input className={inp} type="number" min="0" value={form.children_count} onChange={e => set('children_count', e.target.value)} placeholder="0" />
               </div>
             </div>
-            <div className="pt-2 border-t border-white/6">
-              <p className="text-xs text-white/40 mb-3">Контактное лицо на случай экстренной связи</p>
-              <div className="grid grid-cols-1 gap-3">
+            <div className="pt-3 border-t border-[#222]">
+              <p className="text-xs text-[#666] mb-3">Контактное лицо на случай экстренной связи</p>
+              <div className="space-y-3">
                 <div>
                   <label className={lbl}>ФИО</label>
                   <input className={inp} value={form.emergency_contact_name} onChange={e => set('emergency_contact_name', e.target.value)} placeholder="Иванова Мария Ивановна" />
@@ -540,10 +571,10 @@ export default function CandidateOnboarding() {
           <Section title="Раздел 7. Судимость" defaultOpen={false}>
             <div>
               <label className={lbl}>Наличие судимостей</label>
-              <div className="flex gap-3 mt-1 flex-wrap">
+              <div className="flex gap-2 mt-1 flex-wrap">
                 {['Нет','Да, погашена','Да, действующая'].map(opt => (
                   <button key={opt} type="button" onClick={() => set('has_criminal_record', opt)}
-                    className={`flex-1 min-w-[100px] py-2.5 rounded-xl text-sm border transition-all ${form.has_criminal_record === opt ? 'bg-[#7B3FBF]/25 border-[#7B3FBF]/50 text-white' : 'bg-white/3 border-white/8 text-white/40 hover:border-white/20'}`}>
+                    className={`flex-1 min-w-[90px] py-2.5 rounded text-sm border transition-colors ${form.has_criminal_record === opt ? 'bg-[#2a2a2a] border-[#555] text-white' : 'bg-transparent border-[#222] text-[#666] hover:border-[#444]'}`}>
                     {opt}
                   </button>
                 ))}
@@ -561,7 +592,7 @@ export default function CandidateOnboarding() {
           <Section title="Раздел 8. Мотивация и ожидания" defaultOpen={false}>
             <div>
               <label className={lbl}>Ожидаемая заработная плата</label>
-              <input className={inp} value={form.salary_expectations} onChange={e => set('salary_expectations', e.target.value)} placeholder="от 100 000 ₽ / мес." />
+              <input className={inp} value={form.salary_expectations} onChange={e => set('salary_expectations', e.target.value)} placeholder="от 300 000 ₽ / мес." />
             </div>
             <div>
               <label className={lbl}>Мотивация / почему хотите участвовать в программе</label>
@@ -576,7 +607,7 @@ export default function CandidateOnboarding() {
               <div className="flex flex-wrap gap-2 mt-1">
                 {DOCS_READY.map(doc => (
                   <button key={doc} type="button" onClick={() => toggleArr('docs_ready', doc)}
-                    className={`px-3 py-1.5 rounded-lg text-xs transition-all border ${form.docs_ready.includes(doc) ? 'bg-green-500/20 border-green-500/40 text-green-300' : 'bg-white/4 border-white/10 text-white/50 hover:border-white/25'}`}>
+                    className={`px-3 py-1.5 rounded text-xs transition-colors border ${form.docs_ready.includes(doc) ? 'bg-[#2a2a2a] border-[#555] text-white' : 'bg-transparent border-[#222] text-[#666] hover:border-[#444] hover:text-[#999]'}`}>
                     {doc}
                   </button>
                 ))}
@@ -589,34 +620,34 @@ export default function CandidateOnboarding() {
           </Section>
 
           {/* РАЗДЕЛ 10 */}
-          <div className="bg-white/3 border border-white/8 rounded-2xl p-5">
-            <h2 className="text-sm font-bold text-[#7B3FBF] uppercase tracking-widest mb-4">Раздел 10. Подпись и согласие</h2>
-            <p className="text-xs text-white/40 leading-relaxed mb-4">
-              Подтверждаю, что все данные, указанные в анкете, являются достоверными. Даю согласие на
-              обработку моих персональных данных в соответствии с Федеральным законом №152-ФЗ «О персональных данных».
+          <div className="bg-[#111] border border-[#2a2a2a] rounded-lg p-5">
+            <h2 className="text-sm font-bold text-[#aaa] uppercase tracking-widest mb-3">Раздел 10. Подпись и согласие</h2>
+            <p className="text-xs text-[#666] leading-relaxed mb-3">
+              Подтверждаю достоверность указанных данных. Даю согласие на обработку персональных данных
+              в соответствии с Федеральным законом №152-ФЗ «О персональных данных».
             </p>
             <a href="/consent" target="_blank" rel="noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs text-[#7B3FBF] hover:underline mb-4">
-              <ExternalLink size={12} /> Ознакомиться с полным текстом согласия на обработку ПДн
+              className="inline-flex items-center gap-1.5 text-xs text-[#666] hover:text-[#aaa] underline mb-4 transition-colors">
+              <ExternalLink size={11} /> Полный текст согласия на обработку ПДн
             </a>
-            <label className="flex items-start gap-3 cursor-pointer group mt-3" onClick={() => set('consent_given', !form.consent_given)}>
-              <div className={`mt-0.5 w-5 h-5 rounded flex-shrink-0 border-2 flex items-center justify-center transition-all ${form.consent_given ? 'bg-[#7B3FBF] border-[#7B3FBF]' : 'border-white/25 group-hover:border-[#7B3FBF]/60'}`}>
-                {form.consent_given && <CheckCircle size={12} className="text-white" />}
+            <label className="flex items-start gap-3 cursor-pointer mt-3" onClick={() => set('consent_given', !form.consent_given)}>
+              <div className={`mt-0.5 w-5 h-5 rounded flex-shrink-0 border-2 flex items-center justify-center transition-all ${form.consent_given ? 'bg-[#555] border-[#888]' : 'border-[#444] hover:border-[#666]'}`}>
+                {form.consent_given && <CheckCircle size={11} className="text-white" />}
               </div>
-              <span className="text-sm text-white/70 leading-relaxed">
-                <strong className="text-white">Согласен(а)</strong> на обработку персональных данных.
-                Подтверждаю достоверность указанных сведений.
+              <span className="text-sm text-[#888] leading-relaxed">
+                <strong className="text-[#ccc]">Согласен(а)</strong> на обработку персональных данных.
+                Все указанные сведения достоверны.
               </span>
             </label>
           </div>
 
           <button type="submit" disabled={submitting || !form.consent_given}
-            className="w-full py-4 rounded-xl bg-[#7B3FBF] text-white font-black text-base hover:bg-[#8B4FCF] transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            className="w-full py-3.5 rounded bg-[#333] text-white font-bold text-sm hover:bg-[#444] transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 border border-[#444]">
             {submitting
-              ? <><Loader2 size={18} className="animate-spin" /> Сохранение...</>
+              ? <><Loader2 size={16} className="animate-spin" /> Сохранение...</>
               : formRecord?.status === 'completed' ? 'Сохранить изменения' : 'Подписать и отправить анкету'}
           </button>
-          <p className="text-center text-xs text-white/20 pb-4">* — обязательные для заполнения поля</p>
+          <p className="text-center text-xs text-[#444] pb-4">* — обязательные для заполнения поля</p>
         </form>
       </div>
     </div>
