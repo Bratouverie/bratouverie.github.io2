@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, Upload, Trash2, Download, FileText, AlertTriangle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Upload, Trash2, Download, FileText, AlertTriangle, ExternalLink } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
 const POSITIONS = ['Разнорабочий','Строитель','Водитель B','Водитель C','Водитель CE','Водитель D','Автослесарь','Инженер связи','Оператор БПЛА','Взрывотехник','Медицинский работник','Охранник'];
@@ -31,8 +31,17 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
 
   const [uploading, setUploading]   = useState(false);
   const [dragOver, setDragOver]     = useState(false);
-  const [stopList, setStopList]     = useState(null); // {full_name, agency_name}
+  const [stopList, setStopList]     = useState(null);
   const [checking, setChecking]     = useState(false);
+  const [formDocs, setFormDocs]     = useState([]); // документы из анкеты
+
+  useEffect(() => {
+    if (!candidate?.id) return;
+    base44.entities.CandidateForm.filter({ candidate_id: candidate.id }).then(records => {
+      const rec = records.find(r => r.status === 'completed');
+      if (rec?.uploaded_docs?.length) setFormDocs(rec.uploaded_docs);
+    });
+  }, [candidate?.id]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -248,9 +257,31 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
             <textarea className={inp + ' resize-none'} rows={2} value={form.comment} onChange={e => set('comment', e.target.value)} placeholder="Комментарий..." />
           </div>
 
+          {/* Документы из анкеты */}
+          {formDocs.length > 0 && (
+            <div className="border-t border-[rgba(123,63,191,0.15)] pt-4">
+              <div className="text-xs text-[#7B3FBF] font-bold uppercase tracking-widest mb-3">Документы из анкеты</div>
+              <div className="space-y-2">
+                {formDocs.map((doc, i) => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-2.5 bg-[rgba(255,255,255,0.03)] border border-[rgba(123,63,191,0.12)] rounded-lg">
+                    <FileText size={13} className="text-[#C9A84C] flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs text-[#F8FAFC]/80 truncate">{doc.name}</div>
+                      {doc.uploaded_at && <div className="text-xs text-[#F8FAFC]/25">{new Date(doc.uploaded_at).toLocaleDateString('ru-RU')}</div>}
+                    </div>
+                    <a href={doc.url} target="_blank" rel="noreferrer"
+                      className="p-1.5 rounded hover:bg-[#7B3FBF]/20 text-[#F8FAFC]/50 hover:text-[#C9A84C] transition-all">
+                      <ExternalLink size={13} />
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Documents */}
           <div className="border-t border-[rgba(123,63,191,0.15)] pt-4">
-            <div className="text-xs text-[#7B3FBF] font-bold uppercase tracking-widest mb-3">Документы</div>
+            <div className="text-xs text-[#7B3FBF] font-bold uppercase tracking-widest mb-3">Документы (прикреплённые вручную)</div>
             <div
               onDragOver={e => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}

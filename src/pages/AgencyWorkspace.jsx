@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Plus, Edit2, Trash2, LogOut, Building2, Users, Search, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, X, Link2, ClipboardCopy } from 'lucide-react';
+import { Plus, Edit2, Trash2, LogOut, Building2, Users, Search, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, X, ClipboardCopy, Download, Archive, ArchiveRestore } from 'lucide-react';
 import CandidateModal from '../components/admin/CandidateModal';
 import { logCandidateAction } from '@/lib/candidateLogger';
 
@@ -37,6 +37,7 @@ export default function AgencyWorkspace() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editCandidate, setEditCandidate] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
+  const [showArchive, setShowArchive] = useState(false);
 
   useEffect(() => {
     if (!session?.id) { navigate('/agency-login', { replace: true }); return; }
@@ -93,6 +94,37 @@ export default function AgencyWorkspace() {
     setCandidates(prev => prev.filter(c => c.id !== id));
   };
 
+  const handleArchive = async (c) => {
+    await base44.entities.Candidate.update(c.id, { is_archived: true });
+    await logCandidateAction({ action: 'update', candidate: { ...c, is_archived: true }, oldData: c, actor: getActor() });
+    setCandidates(prev => prev.map(x => x.id === c.id ? { ...x, is_archived: true } : x));
+  };
+
+  const handleUnarchive = async (c) => {
+    await base44.entities.Candidate.update(c.id, { is_archived: false });
+    await logCandidateAction({ action: 'update', candidate: { ...c, is_archived: false }, oldData: c, actor: getActor() });
+    setCandidates(prev => prev.map(x => x.id === c.id ? { ...x, is_archived: false } : x));
+  };
+
+  const generateFormToken = async (c) => {
+    const token = 'cf-' + Math.random().toString(36).substring(2, 10) + '-' + Math.random().toString(36).substring(2, 10);
+    await base44.entities.Candidate.update(c.id, { form_token: token, form_status: 'pending' });
+    await base44.entities.CandidateForm.create({ candidate_id: c.id, form_token: token, status: 'pending' });
+    load();
+  };
+
+  const exportCSV = () => {
+    const src = displayed;
+    const headers = ['ФИО','Телефон','Должность','Город','Дата рождения','Проверка СБ','Медкомиссия','Дата прибытия','Комментарий'];
+    const rows = src.map(c => [c.full_name, c.phone, c.position, c.city, c.birth_date, c.sb_check, c.medical_check, c.arrival_date, c.comment]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${v || ''}"`).join(',')).join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'candidates.csv'; a.click();
+  };
+
+  const isArchivable = (c) => c.payment_made === 'Да' || c.payment_basis === 'Отказался от отправки';
+
   const copyFormLink = (c) => {
     if (!c.form_token) return;
     const url = `${window.location.origin}/form/${c.form_token}`;
@@ -113,14 +145,23 @@ export default function AgencyWorkspace() {
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
   const hasFilters = Object.values(filters).some(Boolean) || search;
 
-  const filtered = candidates.filter(c => {
+  const active = candidates.filter(c => !c.is_archived);
+  const archived = candidates.filter(c => c.is_archived);
+
+  const applyFilters = (list) => {
     const q = search.toLowerCase();
-    const matchSearch = !q || c.full_name?.toLowerCase().includes(q) || c.position?.toLowerCase().includes(q) || c.city?.toLowerCase().includes(q);
-    const matchPos = !filters.position || c.position === filters.position;
-    const matchSB  = !filters.sb_check || c.sb_check === filters.sb_check;
-    const matchMed = !filters.medical_check || c.medical_check === filters.medical_check;
-    return matchSearch && matchPos && matchSB && matchMed;
-  });
+    return list.filter(c => {
+      const matchSearch = !q || c.full_name?.toLowerCase().includes(q) || c.position?.toLowerCase().includes(q) || c.city?.toLowerCase().includes(q);
+      const matchPos = !filters.position || c.position === filters.position;
+      const matchSB  = !filters.sb_check || c.sb_check === filters.sb_check;
+      const matchMed = !filters.medical_check || c.medical_check === filters.medical_check;
+      return matchSearch && matchPos && matchSB && matchMed;
+    });
+  };
+
+  const filtered = applyFilters(active);
+  const filteredArchived = applyFilters(archived);
+  const displayed = showArchive ? filteredArchived : filtered;
 
   const inp = "px-3 py-2 bg-[rgba(255,255,255,0.04)] border border-[rgba(123,63,191,0.2)] rounded-lg text-sm text-[#F8FAFC] focus:outline-none focus:border-[#7B3FBF]";
 
@@ -144,6 +185,15 @@ export default function AgencyWorkspace() {
             <button onClick={load} title="Обновить данные"
               className="p-2 rounded-lg border border-[rgba(123,63,191,0.2)] text-[#F8FAFC]/50 hover:text-[#7B3FBF] hover:border-[#7B3FBF]/40 transition-all">
               <RefreshCw size={14} />
+            </button>
+            {archived.length > 0 && (
+              <button onClick={() => setShowArchive(v => !v)}
+                className={`flex items-center gap-2 px-4 py-2 text-xs rounded border transition-all ${showArchive ? 'border-[#C9A84C]/50 text-[#C9A84C] bg-[#C9A84C]/10' : 'border-[rgba(255,255,255,0.1)] text-[#F8FAFC]/40 hover:text-[#C9A84C]'}`}>
+                <Archive size={13} /> Архив ({archived.length})
+              </button>
+            )}
+            <button onClick={exportCSV} className="flex items-center gap-2 px-4 py-2 text-xs rounded border border-[rgba(201,168,76,0.3)] text-[#C9A84C] hover:bg-[#C9A84C]/10 transition-all">
+              <Download size={14} /> CSV
             </button>
             <button onClick={handleLogout}
               className="flex items-center gap-2 px-4 py-2 text-xs rounded-lg border border-[rgba(255,255,255,0.12)] text-[#F8FAFC]/50 hover:text-red-400 hover:border-red-500/30 transition-all">
@@ -222,14 +272,18 @@ export default function AgencyWorkspace() {
               <X size={12} /> Сбросить
             </button>
           )}
-          <button
-            onClick={() => { setEditCandidate(null); setModalOpen(true); }}
-            className="flex items-center gap-2 px-5 py-2.5 text-sm rounded-lg bg-[#7B3FBF] text-white hover:bg-[#8B4FCF] transition-all font-bold ml-auto">
-            <Plus size={15} /> Добавить кандидата
-          </button>
+          {!showArchive && (
+            <button
+              onClick={() => { setEditCandidate(null); setModalOpen(true); }}
+              className="flex items-center gap-2 px-5 py-2.5 text-sm rounded-lg bg-[#7B3FBF] text-white hover:bg-[#8B4FCF] transition-all font-bold ml-auto">
+              <Plus size={15} /> Добавить кандидата
+            </button>
+          )}
         </div>
 
-        <div className="text-xs text-[#F8FAFC]/30 mb-4">Кандидатов: {filtered.length} из {candidates.length}</div>
+        <div className="text-xs text-[#F8FAFC]/30 mb-4">
+          {showArchive ? `Архив: ${filteredArchived.length} из ${archived.length}` : `Кандидатов: ${filtered.length} из ${active.length}`}
+        </div>
 
         {/* Table */}
         {loading ? (
@@ -256,7 +310,7 @@ export default function AgencyWorkspace() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(c => (
+                  {displayed.map(c => (
                     <tr key={c.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(123,63,191,0.06)] transition-colors">
                       <td className="px-4 py-3">
                         <div className="font-bold text-[#F8FAFC]">{c.full_name}</div>
@@ -288,44 +342,62 @@ export default function AgencyWorkspace() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                          {c.comment ? (
-                            <Tooltip text={c.comment}>
-                              <MessageSquare size={14} className="text-[#7B3FBF] cursor-help" />
-                            </Tooltip>
-                          ) : <span className="text-[#F8FAFC]/20">—</span>}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            {getFormStatusBadge(c)}
-                            {c.form_token && c.form_status !== 'completed' && (
-                              <button onClick={() => copyFormLink(c)} title="Скопировать ссылку на анкету"
-                                className="p-1.5 rounded hover:bg-[#7B3FBF]/20 text-[#F8FAFC]/40 hover:text-[#7B3FBF] transition-all flex-shrink-0">
-                                {copiedId === c.id ? <CheckCircle size={13} className="text-green-400" /> : <ClipboardCopy size={13} />}
+                        {c.comment ? (
+                          <Tooltip text={c.comment}>
+                            <MessageSquare size={14} className="text-[#7B3FBF] cursor-help" />
+                          </Tooltip>
+                        ) : <span className="text-[#F8FAFC]/20">—</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {getFormStatusBadge(c)}
+                          {c.form_token && c.form_status !== 'completed' && (
+                            <button onClick={() => copyFormLink(c)} title="Скопировать ссылку"
+                              className="p-1.5 rounded hover:bg-[#7B3FBF]/20 text-[#F8FAFC]/40 hover:text-[#7B3FBF] transition-all flex-shrink-0">
+                              {copiedId === c.id ? <CheckCircle size={13} className="text-green-400" /> : <ClipboardCopy size={13} />}
+                            </button>
+                          )}
+                          {!c.form_token && (
+                            <button onClick={() => generateFormToken(c)} title="Создать анкету"
+                              className="text-xs text-white/30 hover:text-[#7B3FBF] transition-all">+ Создать</button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          {showArchive ? (
+                            <button onClick={() => handleUnarchive(c)} title="Вернуть из архива"
+                              className="p-1.5 rounded hover:bg-green-500/20 text-[#F8FAFC]/50 hover:text-green-400 transition-all">
+                              <ArchiveRestore size={14} />
+                            </button>
+                          ) : (
+                            <>
+                              <button onClick={() => { setEditCandidate(c); setModalOpen(true); }}
+                                className="p-1.5 rounded hover:bg-[#7B3FBF]/20 text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-all">
+                                <Edit2 size={14} />
                               </button>
-                            )}
-                            {!c.form_token && <span className="text-xs text-[#F8FAFC]/20">—</span>}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <button onClick={() => { setEditCandidate(c); setModalOpen(true); }}
-                              className="p-1.5 rounded hover:bg-[#7B3FBF]/20 text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-all">
-                              <Edit2 size={14} />
-                            </button>
-                            <button onClick={() => handleDelete(c.id)}
-                              className="p-1.5 rounded hover:bg-red-500/20 text-[#F8FAFC]/50 hover:text-red-400 transition-all">
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </td>
+                              {isArchivable(c) && (
+                                <button onClick={() => handleArchive(c)} title="В архив"
+                                  className="p-1.5 rounded hover:bg-[#C9A84C]/20 text-[#F8FAFC]/50 hover:text-[#C9A84C] transition-all">
+                                  <Archive size={14} />
+                                </button>
+                              )}
+                            </>
+                          )}
+                          <button onClick={() => handleDelete(c.id)}
+                            className="p-1.5 rounded hover:bg-red-500/20 text-[#F8FAFC]/50 hover:text-red-400 transition-all">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
-                  {filtered.length === 0 && (
+                  {displayed.length === 0 && (
                     <tr>
-                      <td colSpan={10} className="text-center py-16 text-[#F8FAFC]/30">
+                      <td colSpan={11} className="text-center py-16 text-[#F8FAFC]/30">
                         <div className="flex flex-col items-center gap-3">
                           <Users size={32} className="text-[#F8FAFC]/15" />
-                          <p>{candidates.length > 0 ? 'Нет кандидатов по выбранным фильтрам' : 'Кандидатов пока нет. Добавьте первого!'}</p>
+                          <p>{showArchive ? 'Архив пуст' : candidates.length > 0 ? 'Нет кандидатов по фильтрам' : 'Кандидатов пока нет. Добавьте первого!'}</p>
                         </div>
                       </td>
                     </tr>

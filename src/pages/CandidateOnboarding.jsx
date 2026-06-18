@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { CheckCircle, AlertCircle, Loader2, ExternalLink, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader2, ExternalLink, ChevronDown, ChevronUp, Info, Upload, FileText, Trash2, Download } from 'lucide-react';
 
 const POSITIONS = ['Разнорабочий','Строитель','Водитель B','Водитель C','Водитель CE','Водитель D','Автослесарь','Инженер связи','Оператор БПЛА','Взрывотехник','Медицинский работник','Охранник'];
 const EDUCATION_LEVELS = ['Среднее','Среднее специальное','Неполное высшее','Высшее','Несколько высших'];
@@ -158,6 +158,8 @@ export default function CandidateOnboarding() {
   const [birthPlaceSameAsCity, setBirthPlaceSameAsCity] = useState(false);
   const [actualSameAsReg, setActualSameAsReg] = useState(false);
   const [showAssemblyTip, setShowAssemblyTip] = useState(false);
+  const [uploadedDocs, setUploadedDocs] = useState([]);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     const loadForm = async () => {
@@ -171,6 +173,7 @@ export default function CandidateOnboarding() {
       if (rec.status === 'completed') {
         const filled = prefillFromRecord(rec, cand);
         setForm({ ...EMPTY_FORM, ...filled });
+        if (rec.uploaded_docs?.length) setUploadedDocs(rec.uploaded_docs);
         if (filled.actual_address === filled.registration_address && filled.registration_address) setActualSameAsReg(true);
         if (filled.birth_place === filled.city && filled.city) setBirthPlaceSameAsCity(true);
         setIsEditing(editMode);
@@ -202,6 +205,36 @@ export default function CandidateOnboarding() {
 
   const currentSkills = SKILLS_BY_POSITION[form.position] || DEFAULT_SKILLS;
 
+  // Требуемые типы документов
+  const REQUIRED_DOC_TYPES = [
+    { id: 'passport_main', label: 'Паспорт (разворот с фото)', required: true },
+    { id: 'passport_reg', label: 'Паспорт (страница с пропиской)', required: true },
+    { id: 'snils', label: 'СНИЛС', required: true },
+    { id: 'inn', label: 'ИНН', required: false },
+    { id: 'military', label: 'Военный билет / приписное', required: false },
+    { id: 'work_book', label: 'Трудовая книжка (первая страница)', required: false },
+    { id: 'driver_license', label: 'Водительское удостоверение', required: false },
+    { id: 'diploma', label: 'Диплом об образовании', required: false },
+    { id: 'medical', label: 'Медицинская книжка', required: false },
+    { id: 'certs', label: 'Допуски / сертификаты', required: false },
+    { id: 'photo', label: 'Фото 3×4 (цветное)', required: true },
+  ];
+
+  const handleDocUpload = async (docType, docLabel, file) => {
+    if (!file) return;
+    setUploading(true);
+    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    const newDoc = { doc_type: docType, name: docLabel + ': ' + file.name, url: file_url, uploaded_at: new Date().toISOString() };
+    setUploadedDocs(prev => {
+      // Заменяем если уже есть этот тип
+      const filtered = prev.filter(d => d.doc_type !== docType);
+      return [...filtered, newDoc];
+    });
+    setUploading(false);
+  };
+
+  const removeDoc = (docType) => setUploadedDocs(prev => prev.filter(d => d.doc_type !== docType));
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.consent_given) { alert('Необходимо дать согласие на обработку персональных данных'); return; }
@@ -210,7 +243,7 @@ export default function CandidateOnboarding() {
     }
     setSubmitting(true);
     const now = new Date().toISOString();
-    const saveData = { ...form, consent_timestamp: now, submitted_at: now, status: 'completed' };
+    const saveData = { ...form, uploaded_docs: uploadedDocs, consent_timestamp: now, submitted_at: now, status: 'completed' };
     await base44.entities.CandidateForm.update(formRecord.id, saveData);
     if (formRecord.candidate_id) {
       await base44.entities.Candidate.update(formRecord.candidate_id, {
@@ -619,9 +652,61 @@ export default function CandidateOnboarding() {
             </div>
           </Section>
 
-          {/* РАЗДЕЛ 10 */}
+          {/* РАЗДЕЛ 10: Загрузка документов */}
+          <Section title="Раздел 10. Загрузка документов" defaultOpen={false}>
+            <p className="text-xs text-[#666] leading-relaxed">
+              Загрузите сканы или фотографии документов. Форматы: JPG, PNG, PDF. Обязательные документы отмечены <span className="text-red-500">*</span>
+            </p>
+            <div className="space-y-2">
+              {REQUIRED_DOC_TYPES.map(dt => {
+                const uploaded = uploadedDocs.find(d => d.doc_type === dt.id);
+                return (
+                  <div key={dt.id} className="flex items-center gap-3 p-3 bg-[#161616] border border-[#2a2a2a] rounded">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs text-[#888] font-medium">
+                        {dt.label}{dt.required && <span className="text-red-500 ml-1">*</span>}
+                      </div>
+                      {uploaded && (
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <FileText size={11} className="text-green-500 flex-shrink-0" />
+                          <span className="text-xs text-green-500 truncate">{uploaded.name.split(': ')[1] || uploaded.name}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {uploaded && (
+                        <>
+                          <a href={uploaded.url} target="_blank" rel="noreferrer"
+                            className="p-1.5 rounded border border-[#333] text-[#666] hover:text-[#aaa] transition-colors">
+                            <Download size={12} />
+                          </a>
+                          <button type="button" onClick={() => removeDoc(dt.id)}
+                            className="p-1.5 rounded border border-[#333] text-[#666] hover:text-red-400 transition-colors">
+                            <Trash2 size={12} />
+                          </button>
+                        </>
+                      )}
+                      <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded border text-xs cursor-pointer transition-colors ${uploaded ? 'border-[#333] text-[#666] hover:border-[#555]' : 'border-[#444] text-[#aaa] hover:border-[#666]'}`}>
+                        <Upload size={11} />
+                        {uploaded ? 'Заменить' : 'Загрузить'}
+                        <input type="file" className="hidden" accept=".jpg,.jpeg,.png,.pdf"
+                          onChange={e => e.target.files?.[0] && handleDocUpload(dt.id, dt.label, e.target.files[0])} />
+                      </label>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {uploading && (
+              <div className="flex items-center gap-2 text-xs text-[#666]">
+                <Loader2 size={12} className="animate-spin" /> Загрузка файла...
+              </div>
+            )}
+          </Section>
+
+          {/* РАЗДЕЛ 11 */}
           <div className="bg-[#111] border border-[#2a2a2a] rounded-lg p-5">
-            <h2 className="text-sm font-bold text-[#aaa] uppercase tracking-widest mb-3">Раздел 10. Подпись и согласие</h2>
+            <h2 className="text-sm font-bold text-[#aaa] uppercase tracking-widest mb-3">Раздел 11. Подпись и согласие</h2>
             <p className="text-xs text-[#666] leading-relaxed mb-3">
               Подтверждаю достоверность указанных данных. Даю согласие на обработку персональных данных
               в соответствии с Федеральным законом №152-ФЗ «О персональных данных».
