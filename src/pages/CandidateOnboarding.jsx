@@ -165,11 +165,25 @@ export default function CandidateOnboarding() {
 
   useEffect(() => {
     const loadForm = async () => {
-      const records = await base44.entities.CandidateForm.filter({ form_token: token });
-      if (!records.length) { setNotFound(true); setLoading(false); return; }
+      let records = await base44.entities.CandidateForm.filter({ form_token: token });
+      if (!records.length) {
+        // Auto-recover: CandidateForm record missing but Candidate has the token
+        const cands = await base44.entities.Candidate.filter({ form_token: token });
+        if (cands.length) {
+          const cand = cands[0];
+          const recovered = await base44.entities.CandidateForm.create({
+            candidate_id: cand.id, form_token: token, status: 'pending',
+          });
+          records = [recovered];
+        } else {
+          setNotFound(true); setLoading(false); return;
+        }
+      }
       const rec = records[0];
       setFormRecord(rec);
-      const cands = await base44.entities.Candidate.filter({ id: rec.candidate_id });
+      const cands = rec.candidate_id
+        ? await base44.entities.Candidate.filter({ id: rec.candidate_id })
+        : await base44.entities.Candidate.filter({ form_token: token });
       const cand = cands[0] || null;
       setCandidate(cand);
       if (rec.status === 'completed') {

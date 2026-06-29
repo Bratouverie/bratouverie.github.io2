@@ -76,12 +76,15 @@ export default function AgencyWorkspace() {
       await logCandidateAction({ action: 'update', candidate: { ...dataWithAgency, id }, oldData: old, actor: getActor() });
       await notifyStatusChange({ ...dataWithAgency, id }, old);
     } else {
-      const token = 'cf-' + Math.random().toString(36).substring(2, 10) + '-' + Math.random().toString(36).substring(2, 10);
-      const created = await base44.entities.Candidate.create({ ...dataWithAgency, form_token: token, form_status: 'pending' });
-      if (created?.id) {
-        await base44.entities.CandidateForm.create({ candidate_id: created.id, form_token: token, status: 'pending' });
+      const response = await base44.functions.invoke('createCandidateSafe', {
+        candidate_data: dataWithAgency,
+        actor: getActor(),
+      });
+      if (response.data?.error === 'duplicate') {
+        const ex = response.data.existing_candidate;
+        alert(`Дубль: кандидат «${ex.full_name}» с датой рождения ${ex.birth_date} уже существует${ex.agency_name ? ` (агентство: ${ex.agency_name})` : ''}.\nСоздание заблокировано.`);
+        return;
       }
-      await logCandidateAction({ action: 'create', candidate: { ...dataWithAgency, id: created?.id }, actor: getActor() });
     }
     setModalOpen(false);
     setEditCandidate(null);

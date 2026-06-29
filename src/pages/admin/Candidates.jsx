@@ -33,7 +33,7 @@ export default function Candidates() {
   const [search, setSearch]         = useState('');
   const [modalOpen, setModalOpen]   = useState(false);
   const [editCandidate, setEditCandidate] = useState(null);
-  const [filters, setFilters] = useState({ agency: '', position: '', sb_check: '', medical_check: '' });
+  const [filters, setFilters] = useState({ agency: '', position: '', sb_check: '', medical_check: '', form_status: '' });
   const [showArchive, setShowArchive] = useState(false);
   const [duplicateIds, setDuplicateIds] = useState(new Set());
   const [currentUser, setCurrentUser] = useState(null);
@@ -87,14 +87,15 @@ export default function Candidates() {
       await logCandidateAction({ action: 'update', candidate: { ...data, id }, oldData: old, actor: getActor() });
       await notifyStatusChange({ ...data, id }, old);
     } else {
-      // Generate unique form token
-      const token = 'cf-' + Math.random().toString(36).substring(2, 10) + '-' + Math.random().toString(36).substring(2, 10);
-      const created = await base44.entities.Candidate.create({ ...data, form_token: token, form_status: 'pending' });
-      // Create linked CandidateForm record
-      if (created?.id) {
-        await base44.entities.CandidateForm.create({ candidate_id: created.id, form_token: token, status: 'pending' });
+      const response = await base44.functions.invoke('createCandidateSafe', {
+        candidate_data: data,
+        actor: getActor(),
+      });
+      if (response.data?.error === 'duplicate') {
+        const ex = response.data.existing_candidate;
+        alert(`Дубль: кандидат «${ex.full_name}» с датой рождения ${ex.birth_date} уже существует${ex.agency_name ? ` (агентство: ${ex.agency_name})` : ''}.\nСоздание заблокировано.`);
+        return;
       }
-      await logCandidateAction({ action: 'create', candidate: { ...data, id: created?.id }, actor: getActor() });
     }
     setModalOpen(false);
     setEditCandidate(null);
@@ -152,7 +153,8 @@ export default function Candidates() {
       const matchPos    = !filters.position || c.position === filters.position;
       const matchSB     = !filters.sb_check || c.sb_check === filters.sb_check;
       const matchMed    = !filters.medical_check || c.medical_check === filters.medical_check;
-      return matchSearch && matchAgency && matchPos && matchSB && matchMed;
+      const matchForm   = !filters.form_status || c.form_status === filters.form_status;
+      return matchSearch && matchAgency && matchPos && matchSB && matchMed && matchForm;
     });
   };
 
@@ -294,8 +296,13 @@ export default function Candidates() {
             <option value="">Медкомиссия</option>
             {['Не проверялся','Прошёл','Не прошёл'].map(s => <option key={s} value={s}>{s}</option>)}
           </select>
+          <select value={filters.form_status} onChange={e => setF('form_status', e.target.value)} className={inp}>
+            <option value="">Анкета: все</option>
+            <option value="completed">Анкета заполнена</option>
+            <option value="pending">Анкета не заполнена</option>
+          </select>
           {Object.values(filters).some(Boolean) && (
-            <button onClick={() => setFilters({ agency:'', position:'', sb_check:'', medical_check:'' })}
+            <button onClick={() => setFilters({ agency:'', position:'', sb_check:'', medical_check:'', form_status:'' })}
               className="flex items-center gap-1 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 rounded-lg transition-all">
               <X size={12} /> Сбросить
             </button>
