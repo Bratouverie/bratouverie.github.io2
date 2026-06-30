@@ -518,7 +518,7 @@ export default function Candidates() {
                               </button>
                             ) : (
                               <>
-                                {currentUser?.role !== 'moderator' && c.form_status === 'completed' && c.city && (
+                                {c.form_status === 'completed' && c.city && (
                                   <button onClick={() => handleAutoAssembly(c)} title="Авто-подбор точки сбора"
                                     className="p-1.5 rounded hover:bg-[#C9A84C]/20 text-[#F8FAFC]/50 hover:text-[#C9A84C] transition-all">
                                     <MapPin size={14}/>

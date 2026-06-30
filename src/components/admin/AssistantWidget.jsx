@@ -28,9 +28,10 @@ export default function AssistantWidget() {
   const unsubscribeRef = useRef(null);
   const initStartedRef = useRef(false);
 
-  const isCRMPage = location.pathname.startsWith('/admin/') || location.pathname.startsWith('/agency/workspace');
+  const isAgencyWorkspace = location.pathname.startsWith('/agency/workspace');
+  const isCRMPage = location.pathname.startsWith('/admin/') || isAgencyWorkspace;
   const isFullAssistantPage = location.pathname === '/admin/assistant';
-  const shouldShow = isAuthed && isCRMPage && !isFullAssistantPage && (userRole === 'admin' || userRole === 'moderator');
+  const shouldShow = isCRMPage && !isFullAssistantPage && (isAgencyWorkspace || (isAuthed && (userRole === 'admin' || userRole === 'moderator')));
 
   useEffect(() => {
     base44.auth.isAuthenticated().then(async (authed) => {
@@ -79,7 +80,12 @@ export default function AssistantWidget() {
   useEffect(() => {
     if (isOpen && !initStartedRef.current) {
       initStartedRef.current = true;
-      initConversation();
+      if (isAgencyWorkspace && !isAuthed) {
+        setFallbackMode(true);
+        setInitState('ready');
+      } else {
+        initConversation();
+      }
     }
   }, [isOpen]);
 
@@ -175,6 +181,26 @@ export default function AssistantWidget() {
             </div>
           </div>
 
+          {/* Quick Actions */}
+          <div className="flex gap-1.5 px-3 py-2 border-b border-[rgba(123,63,191,0.15)] overflow-x-auto flex-shrink-0">
+            <button onClick={() => handleSend('Обнови список точек сбора: найди новые города кандидатов, добавь в справочник и покажи актуальный список городов-точек сбора')}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#C9A84C]/25 bg-[#C9A84C]/5 text-[10px] text-[#C9A84C] whitespace-nowrap hover:bg-[#C9A84C]/12 transition-all flex-shrink-0">
+              <MapPin size={10} /> Точки сбора
+            </button>
+            <button onClick={() => handleSend('Какие кандидаты сейчас без пункта сбора?')}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[rgba(123,63,191,0.2)] bg-[rgba(123,63,191,0.04)] text-[10px] text-[#F8FAFC]/60 whitespace-nowrap hover:bg-[rgba(123,63,191,0.08)] transition-all flex-shrink-0">
+              Без ПС
+            </button>
+            <button onClick={() => handleSend('Есть ли города кандидатов, которых нет в справочнике?')}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[rgba(123,63,191,0.2)] bg-[rgba(123,63,191,0.04)] text-[10px] text-[#F8FAFC]/60 whitespace-nowrap hover:bg-[rgba(123,63,191,0.08)] transition-all flex-shrink-0">
+              Новые города
+            </button>
+            <button onClick={() => handleSend('Покажи открытые тикеты от менеджеров')}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[rgba(123,63,191,0.2)] bg-[rgba(123,63,191,0.04)] text-[10px] text-[#F8FAFC]/60 whitespace-nowrap hover:bg-[rgba(123,63,191,0.08)] transition-all flex-shrink-0">
+              Тикеты
+            </button>
+          </div>
+
           <div className="flex-1 overflow-y-auto px-4 py-3">
             {initState === 'error' && messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center px-4">
@@ -197,17 +223,7 @@ export default function AssistantWidget() {
                   <Sparkles size={20} className="text-[#7B3FBF]" />
                 </div>
                 <p className="text-xs text-[#F8FAFC]/40 mb-4 max-w-[260px]">Задайте вопрос о CRM, кандидатах или логистике</p>
-                {userRole === 'admin' && (
-                  <button onClick={() => handleSend('Обнови список точек сбора: найди новые города кандидатов, добавь в справочник и покажи актуальный список городов-точек сбора')}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-[#C9A84C]/30 bg-[#C9A84C]/8 text-xs text-[#C9A84C] hover:bg-[#C9A84C]/15 transition-all mb-1.5">
-                    <MapPin size={12} /> Обновить точки сбора
-                  </button>
-                )}
-                {userRole === 'moderator' && (
-                  <div className="px-3 py-2 rounded-lg bg-[#7B3FBF]/8 border border-[#7B3FBF]/20 text-[10px] text-[#F8FAFC]/40 text-center mb-1.5">
-                    Только информационные функции
-                  </div>
-                )}
+
                 <div className="space-y-1.5 w-full">
                   {SUGGESTED_PROMPTS.map((p, i) => (
                     <button key={i} onClick={() => handleSend(p)}

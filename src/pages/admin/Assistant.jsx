@@ -164,6 +164,32 @@ export default function Assistant() {
         </div>
       </div>
 
+      {/* Quick Actions */}
+      <div className="border-b border-[rgba(123,63,191,0.15)] bg-[#05070A]/50">
+        <div className="max-w-4xl mx-auto px-6 py-2 flex gap-2 overflow-x-auto">
+          <button onClick={() => handleSend('Обнови список точек сбора: найди новые города кандидатов, добавь в справочник и покажи актуальный список городов-точек сбора')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#C9A84C]/25 bg-[#C9A84C]/5 text-xs text-[#C9A84C] whitespace-nowrap hover:bg-[#C9A84C]/12 transition-all flex-shrink-0">
+            <MapPin size={12} /> Обновить точки сбора
+          </button>
+          <button onClick={() => handleSend('Какие кандидаты сейчас без пункта сбора?')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[rgba(123,63,191,0.2)] bg-[rgba(123,63,191,0.04)] text-xs text-[#F8FAFC]/60 whitespace-nowrap hover:bg-[rgba(123,63,191,0.08)] transition-all flex-shrink-0">
+            Без пункта сбора
+          </button>
+          <button onClick={() => handleSend('Есть ли города кандидатов, которых нет в справочнике?')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[rgba(123,63,191,0.2)] bg-[rgba(123,63,191,0.04)] text-xs text-[#F8FAFC]/60 whitespace-nowrap hover:bg-[rgba(123,63,191,0.08)] transition-all flex-shrink-0">
+            Новые города
+          </button>
+          <button onClick={() => handleSend('Покажи открытые тикеты от менеджеров')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[rgba(123,63,191,0.2)] bg-[rgba(123,63,191,0.04)] text-xs text-[#F8FAFC]/60 whitespace-nowrap hover:bg-[rgba(123,63,191,0.08)] transition-all flex-shrink-0">
+            Открытые тикеты
+          </button>
+          <button onClick={() => handleSend('Какие кандидаты без обязательных документов?')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[rgba(123,63,191,0.2)] bg-[rgba(123,63,191,0.04)] text-xs text-[#F8FAFC]/60 whitespace-nowrap hover:bg-[rgba(123,63,191,0.08)] transition-all flex-shrink-0">
+            Без документов
+          </button>
+        </div>
+      </div>
+
       {/* Chat area */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-6 py-6">
@@ -176,19 +202,7 @@ export default function Assistant() {
               <p className="text-sm text-[#F8FAFC]/40 max-w-md mx-auto mb-8">
                 Задайте вопрос о работе CRM, условиях программы, кандидатах или логистике. Агент имеет доступ к актуальным данным системы.
               </p>
-              {userRole === 'admin' && (
-                <div className="mb-4 max-w-xl mx-auto">
-                  <button onClick={() => handleSend('Обнови список точек сбора: найди новые города кандидатов, добавь в справочник и покажи актуальный список городов-точек сбора')}
-                    className="w-full flex items-center gap-2 justify-center px-4 py-3 rounded-xl border border-[#C9A84C]/30 bg-[#C9A84C]/8 text-sm text-[#C9A84C] hover:bg-[#C9A84C]/15 transition-all">
-                    <MapPin size={15} /> Обновить список точек сбора
-                  </button>
-                </div>
-              )}
-              {userRole === 'moderator' && (
-                <div className="mb-4 max-w-xl mx-auto px-3 py-2 rounded-lg bg-[#7B3FBF]/8 border border-[#7B3FBF]/20 text-xs text-[#F8FAFC]/50 text-center">
-                  Режим: только информационные функции
-                </div>
-              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-xl mx-auto">
                 {SUGGESTED_PROMPTS.map((prompt, i) => (
                   <button key={i} onClick={() => handleSend(prompt)}
