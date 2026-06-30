@@ -182,25 +182,7 @@ export default function AssistantWidget() {
             </div>
           </div>
 
-          {/* Quick Actions */}
-          <div className="flex gap-1.5 px-3 py-2 border-b border-[rgba(123,63,191,0.15)] overflow-x-auto flex-shrink-0">
-            <button onClick={() => handleSend('Обнови список точек сбора: найди новые города кандидатов, добавь в справочник и покажи актуальный список городов-точек сбора')}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[#C9A84C]/25 bg-[#C9A84C]/5 text-[10px] text-[#C9A84C] whitespace-nowrap hover:bg-[#C9A84C]/12 transition-all flex-shrink-0">
-              <MapPin size={10} /> Точки сбора
-            </button>
-            <button onClick={() => handleSend('Какие кандидаты сейчас без пункта сбора?')}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[rgba(123,63,191,0.2)] bg-[rgba(123,63,191,0.04)] text-[10px] text-[#F8FAFC]/60 whitespace-nowrap hover:bg-[rgba(123,63,191,0.08)] transition-all flex-shrink-0">
-              Без ПС
-            </button>
-            <button onClick={() => handleSend('Есть ли города кандидатов, которых нет в справочнике?')}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[rgba(123,63,191,0.2)] bg-[rgba(123,63,191,0.04)] text-[10px] text-[#F8FAFC]/60 whitespace-nowrap hover:bg-[rgba(123,63,191,0.08)] transition-all flex-shrink-0">
-              Новые города
-            </button>
-            <button onClick={() => handleSend('Покажи открытые тикеты от менеджеров')}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[rgba(123,63,191,0.2)] bg-[rgba(123,63,191,0.04)] text-[10px] text-[#F8FAFC]/60 whitespace-nowrap hover:bg-[rgba(123,63,191,0.08)] transition-all flex-shrink-0">
-              Тикеты
-            </button>
-          </div>
+
 
           <div className="flex-1 overflow-y-auto px-4 py-3">
             {initState !== 'ready' ? (
