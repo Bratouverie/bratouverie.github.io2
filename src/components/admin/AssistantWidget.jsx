@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { Send, Loader2, Sparkles, X, AlertCircle, RefreshCw, Zap, MapPin } from 'lucide-react';
 import MessageBubble from '@/components/admin/AssistantMessage';
+import DispatchDashboard from '@/components/admin/DispatchDashboard';
 
 const AGENT_NAME = 'crm_helper';
 const SUGGESTED_PROMPTS = [
@@ -202,52 +203,15 @@ export default function AssistantWidget() {
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 py-3">
-            {initState === 'error' && messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center px-4">
-                <AlertCircle size={32} className="text-[#C9A84C] mb-3" />
-                <p className="text-xs text-[#F8FAFC]/60 mb-3">{errorMsg}</p>
-                <p className="text-[10px] text-[#F8FAFC]/35 mb-4">Вы можете продолжить работу в запасном режиме или попробовать переподключиться.</p>
-                <div className="flex gap-2">
-                  <button onClick={handleRetry} className="px-3 py-2 rounded-lg bg-[#7B3FBF] text-white text-xs font-bold hover:bg-[#8B4FCF] transition-all">
-                    Переподключить
-                  </button>
-                  <button onClick={() => { setInitState('fallback'); setFallbackMode(true); }}
-                    className="px-3 py-2 rounded-lg border border-[#C9A84C]/30 text-[#C9A84C] text-xs font-bold hover:bg-[#C9A84C]/10 transition-all">
-                    Запасной режим
-                  </button>
-                </div>
-              </div>
-            ) : messages.length === 0 && initState !== 'initializing' ? (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <div className="w-12 h-12 rounded-xl bg-[#7B3FBF]/15 border border-[#7B3FBF]/30 flex items-center justify-center mb-3">
-                  <Sparkles size={20} className="text-[#7B3FBF]" />
-                </div>
-                <p className="text-xs text-[#F8FAFC]/40 mb-4 max-w-[260px]">Задайте вопрос о CRM, кандидатах или логистике</p>
-
-                <div className="space-y-1.5 w-full">
-                  {SUGGESTED_PROMPTS.map((p, i) => (
-                    <button key={i} onClick={() => handleSend(p)}
-                      className="w-full text-left px-3 py-2 rounded-lg border border-[rgba(123,63,191,0.2)] bg-[rgba(123,63,191,0.04)] text-xs text-[#F8FAFC]/70 hover:border-[#7B3FBF]/40 hover:bg-[rgba(123,63,191,0.08)] transition-all">
-                      {p}
-                    </button>
-                  ))}
+            {initState !== 'ready' ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <Loader2 size={20} className="animate-spin text-[#7B3FBF] mx-auto mb-2" />
+                  <p className="text-xs text-[#F8FAFC]/40">Подключение к диспетчеру...</p>
                 </div>
               </div>
             ) : (
-              <div className="space-y-3">
-                {messages.map((msg, i) => <MessageBubble key={i} message={msg} />)}
-                {sending && (
-                  <div className="flex justify-start">
-                    <div className="px-3 py-2 rounded-2xl rounded-tl-sm bg-[#05070A] border border-[rgba(123,63,191,0.15)]">
-                      <div className="flex items-center gap-2">
-                        <Loader2 size={12} className="animate-spin text-[#7B3FBF]" />
-                        <span className="text-xs text-[#F8FAFC]/40">{fallbackMode ? 'Обработка...' : 'Анализ данных CRM...'}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
+              <DispatchDashboard />
             )}
           </div>
 
