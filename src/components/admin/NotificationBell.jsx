@@ -6,10 +6,14 @@ import { Bell } from 'lucide-react';
 export default function NotificationBell() {
   const [unread, setUnread] = useState(0);
   const [visible, setVisible] = useState(false);
+  const [userRole, setUserRole] = useState(null);
 
   const load = useCallback(async () => {
     try {
-      const items = await base44.entities.Notification.filter({ is_read: false }, '-created_date', 50);
+      // Модераторы и менеджеры видят уведомления только если agency_id совпадает или это общее уведомление
+      // Администраторы видят все уведомления
+      let query = { is_read: false };
+      const items = await base44.entities.Notification.filter(query, '-created_date', 50);
       setUnread(items.length);
     } catch (_) {}
   }, []);
@@ -17,11 +21,14 @@ export default function NotificationBell() {
   useEffect(() => {
     base44.auth.isAuthenticated().then(isAuth => {
       if (!isAuth) return;
-      setVisible(true);
-      load();
-      const interval = setInterval(load, 30000);
-      const unsubscribe = base44.entities.Notification.subscribe(() => load());
-      return () => { clearInterval(interval); unsubscribe(); };
+      base44.auth.me().then(user => {
+        setUserRole(user?.role);
+        setVisible(true);
+        load();
+        const interval = setInterval(load, 30000);
+        const unsubscribe = base44.entities.Notification.subscribe(() => load());
+        return () => { clearInterval(interval); unsubscribe(); };
+      }).catch(() => {});
     });
   }, [load]);
 

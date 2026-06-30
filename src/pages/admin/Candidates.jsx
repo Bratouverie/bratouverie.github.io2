@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Download, Search, Trash2, Edit2, X, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, Archive, ArchiveRestore, AlertTriangle, ClipboardList, ClipboardCopy, Link2, Sparkles } from 'lucide-react';
+import { Plus, Download, Search, Trash2, Edit2, X, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, Archive, ArchiveRestore, AlertTriangle, ClipboardList, ClipboardCopy, Link2, Sparkles, Loader2 } from 'lucide-react';
 import CandidateModal from '../../components/admin/CandidateModal';
 import InlineCommentCell from '@/components/admin/InlineCommentCell';
 import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card';
@@ -43,6 +43,7 @@ export default function Candidates() {
   const [copiedId, setCopiedId] = useState(null);
   const [cityCache, setCityCache] = useState({});
   const [searchParams] = useSearchParams();
+  const [animatingId, setAnimatingId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -193,51 +194,51 @@ export default function Candidates() {
 
   const handleAutoAssembly = async (c) => {
     if (!c.city) { alert('У кандидата не указан город проживания'); return; }
-
-    // 1. Находим город кандидата в справочнике (cityCache уже загружен)
-    const candidateCity = cityCache[c.city.toLowerCase()];
-    if (!candidateCity || candidateCity.lat == null || candidateCity.lon == null) {
-      alert(`Город «${c.city}» не найден в справочнике или у него нет координат. Добавьте город в справочник через ИИ-помощник.`);
-      return;
-    }
-
-    // 2. Список городов-точек сбора = только города с флагом is_assembly_point, у которых есть координаты
-    const assemblyPoints = Object.values(cityCache).filter(
-      city => city.is_assembly_point === true && city.lat != null && city.lon != null && city.name.toLowerCase() !== c.city.toLowerCase()
-    );
-
-    if (!assemblyPoints.length) {
-      alert('В справочнике нет городов с координатами для расчёта расстояний.');
-      return;
-    }
-
-    // 3. Находим ближайший по формуле Гаверсинуса
-    const result = findNearestAssemblyPoint(candidateCity.lat, candidateCity.lon, assemblyPoints);
-    if (!result) {
-      alert('Не удалось рассчитать расстояние до точек сбора.');
-      return;
-    }
-
-    const nearest = result.point;
-    const distanceKm = result.distance;
-
-    const autoComment = `🤖 Точка сбора определена автоматически: ${nearest.name} (${distanceKm} км). Уточните возможность прибытия кандидата на медкомиссию и дату прибытия.`;
-    // Удаляем старый авто-комментарий перед добавлением нового
-    let baseComment = c.comment || '';
-    const marker = '🤖 Точка сбора определена автоматически:';
-    const markerIdx = baseComment.indexOf(marker);
-    if (markerIdx !== -1) {
-      baseComment = baseComment.substring(0, markerIdx).replace(/\n{2,}$/, '').trim();
-    }
-    const newComment = baseComment ? `${baseComment}\n\n${autoComment}` : autoComment;
-    const updated = { assembly_point: nearest.name, assembly_distance: String(distanceKm), comment: newComment };
-
+    setAnimatingId(c.id);
     try {
+      // 1. Находим город кандидата в справочнике (cityCache уже загружен)
+      const candidateCity = cityCache[c.city.toLowerCase()];
+      if (!candidateCity || candidateCity.lat == null || candidateCity.lon == null) {
+        alert(`Город «${c.city}» не найден в справочнике или у него нет координат. Добавьте город в справочник через ИИ-помощник.`);
+        return;
+      }
+
+      // 2. Список городов-точек сбора = только города с флагом is_assembly_point, у которых есть координаты
+      const assemblyPoints = Object.values(cityCache).filter(
+        city => city.is_assembly_point === true && city.lat != null && city.lon != null && city.name.toLowerCase() !== c.city.toLowerCase()
+      );
+
+      if (!assemblyPoints.length) {
+        alert('В справочнике нет городов с координатами для расчёта расстояний.');
+        return;
+      }
+
+      // 3. Находим ближайший по формуле Гаверсинуса
+      const result = findNearestAssemblyPoint(candidateCity.lat, candidateCity.lon, assemblyPoints);
+      if (!result) {
+        alert('Не удалось рассчитать расстояние до точек сбора.');
+        return;
+      }
+
+      const nearest = result.point;
+      const distanceKm = result.distance;
+
+      const autoComment = `🤖 Точка сбора определена автоматически: ${nearest.name} (${distanceKm} км). Уточните возможность прибытия кандидата на медкомиссию и дату прибытия.`;
+      // Удаляем старый авто-комментарий перед добавлением нового
+      let baseComment = c.comment || '';
+      const marker = '🤖 Точка сбора определена автоматически:';
+      const markerIdx = baseComment.indexOf(marker);
+      if (markerIdx !== -1) {
+        baseComment = baseComment.substring(0, markerIdx).replace(/\n{2,}$/, '').trim();
+      }
+      const newComment = baseComment ? `${baseComment}\n\n${autoComment}` : autoComment;
+      const updated = { assembly_point: nearest.name, assembly_distance: String(distanceKm), comment: newComment };
+
       await base44.entities.Candidate.update(c.id, updated);
       await logCandidateAction({ action: 'update', candidate: { ...c, ...updated }, oldData: c, actor: getActor() });
       setCandidates(prev => prev.map(x => x.id === c.id ? { ...x, ...updated } : x));
-    } catch (e) {
-      alert('Ошибка при сохранении точки сбора: ' + e.message);
+    } finally {
+      setAnimatingId(null);
     }
   };
 
@@ -476,7 +477,7 @@ export default function Candidates() {
                               <HoverCardTrigger asChild>
                                 <span className="cursor-help underline decoration-dotted underline-offset-2 hover:text-[#7B3FBF] transition-colors">{c.city}</span>
                               </HoverCardTrigger>
-                              <HoverCardContent sideOffset={4} className="w-72 bg-[#0D1B3E] border-[rgba(123,63,191,0.3)] text-[#F8FAFC]">
+                              <HoverCardContent side="top" sideOffset={4} className="w-72 bg-[#0D1B3E] border-[rgba(123,63,191,0.3)] text-[#F8FAFC]">
                                 {(() => {
                                   const cityInfo = cityCache[c.city.toLowerCase()];
                                   return (
@@ -552,9 +553,9 @@ export default function Candidates() {
                             ) : (
                               <>
                                 {c.form_status === 'completed' && c.city && (
-                                  <button onClick={() => handleAutoAssembly(c)} title="Авто-подбор точки сбора"
-                                    className={`p-1.5 rounded transition-all ${c.assembly_point ? 'bg-[#C9A84C]/15 text-[#C9A84C] hover:bg-[#C9A84C]/25' : 'text-[#F8FAFC]/50 hover:bg-[#C9A84C]/20 hover:text-[#C9A84C]'}`}>
-                                    <MapPin size={14}/>
+                                  <button onClick={() => handleAutoAssembly(c)} title="Авто-подбор точки сбора" disabled={animatingId === c.id}
+                                    className={`p-1.5 rounded transition-all ${animatingId === c.id ? 'opacity-50 cursor-wait' : ''} ${c.assembly_point ? 'bg-[#C9A84C]/15 text-[#C9A84C] hover:bg-[#C9A84C]/25' : 'text-[#F8FAFC]/50 hover:bg-[#C9A84C]/20 hover:text-[#C9A84C]'}`}>
+                                    {animatingId === c.id ? <Loader2 size={14} className="animate-spin"/> : <MapPin size={14}/>}
                                   </button>
                                 )}
                                 <button onClick={() => { setEditCandidate(c); setModalOpen(true); }}

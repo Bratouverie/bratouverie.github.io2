@@ -19,12 +19,21 @@ export default function Notifications() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [userRole, setUserRole] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const items = await base44.entities.Notification.list('-created_date', 200);
-      setNotifications(items);
+      // Фильтруем уведомления для модератора/менеджера: видны только кандидаты из их агентства
+      const user = await base44.auth.me();
+      if (user?.role !== 'admin' && user?.agency_id) {
+        const filtered = items.filter(n => !n.agency_id || n.agency_id === user.agency_id || n.category === 'form');
+        setNotifications(filtered);
+      } else {
+        setNotifications(items);
+      }
+      setUserRole(user?.role);
     } catch (_) {}
     setLoading(false);
   }, []);

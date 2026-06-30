@@ -5,6 +5,7 @@ import { uploadWithRetry, validateFile } from '@/lib/uploadWithRetry';
 import CandidateFormView from './CandidateFormView';
 import CitySelect from '@/components/CitySelect';
 import { ALL_DOC_TYPES, getMissingRequiredDocs } from '@/lib/docUtils';
+import { findNearestAssemblyPoint } from '@/lib/geoUtils';
 
 const POSITIONS = ['Разнорабочий','Строитель','Водитель B','Водитель C','Водитель CE','Водитель D','Автослесарь','Инженер связи','Оператор БПЛА','Взрывотехник','Медицинский работник','Охранник'];
 
@@ -42,11 +43,20 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
   const [activeTab, setActiveTab]   = useState('card');
   const [cityObject, setCityObject] = useState(null);
   const [assemblyPoints, setAssemblyPoints] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [cityCache, setCityCache] = useState({});
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => {});
     base44.entities.City.filter({ is_assembly_point: true }, '-created_date', 200)
       .then(setAssemblyPoints)
       .catch(() => {});
+    base44.entities.City.list('-created_date', 500).then(cities => {
+      const map = {};
+      cities.forEach(c => { if (c.name && c.lat != null && c.lon != null) map[c.name.toLowerCase()] = c; });
+      setCityCache(map);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -120,19 +130,50 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
 
   const removeDoc = (docType) => setFormDocs(prev => prev.filter(d => d.doc_type !== docType));
 
+  // Расчет расстояния при смене точки сбора
+  const handleAssemblyPointChange = async (assemblyPointName) => {
+    set('assembly_point', assemblyPointName);
+    if (!form.city || !assemblyPointName) return;
+    
+    const candidateCity = cityCache[form.city.toLowerCase()];
+    const selectedPoint = Object.values(cityCache).find(c => c.name === assemblyPointName);
+    
+    if (!candidateCity?.lat || !candidateCity?.lon || !selectedPoint?.lat || !selectedPoint?.lon) return;
+    
+    const result = findNearestAssemblyPoint(candidateCity.lat, candidateCity.lon, [selectedPoint]);
+    if (result) {
+      const distance = result.distance;
+      set('assembly_distance', String(distance));
+      
+      const role = user?.role === 'admin' ? 'Администратор' : 'Модератор';
+      const timestamp = new Date().toLocaleString('ru-RU');
+      const newCommentText = `[${role} | ${timestamp}] Выбрана точка сбора: ${assemblyPointName} (${distance} км)`;
+      
+      const oldComments = (form.comment || '').split('\n---\n');
+      const baseComment = oldComments[0]?.trim() || '';
+      const newComment = baseComment ? `${baseComment}\n---\n${newCommentText}` : newCommentText;
+      set('comment', newComment);
+    }
+  };
+
   const handleSaveClick = async () => {
     if (stopList) return;
     if (form.city && !cityObject) {
       alert('Пожалуйста, выберите населённый пункт из списка. Текстовый ввод не допускается — выберите ближайший из каталога.');
       return;
     }
-    // Сохраняем документы в анкету (единый источник истины)
-    if (candidateFormId) {
-      await base44.entities.CandidateForm.update(candidateFormId, { uploaded_docs: formDocs });
+    setSaving(true);
+    try {
+      // Сохраняем документы в анкету (единый источник истины)
+      if (candidateFormId) {
+        await base44.entities.CandidateForm.update(candidateFormId, { uploaded_docs: formDocs });
+      }
+      // Сохраняем карточку кандидата (без поля documents — оно формируется из анкеты)
+      const { documents, ...candidateData } = form;
+      await onSave(candidateData, candidate?.id);
+    } finally {
+      setSaving(false);
     }
-    // Сохраняем карточку кандидата (без поля documents — оно формируется из анкеты)
-    const { documents, ...candidateData } = form;
-    onSave(candidateData, candidate?.id);
   };
 
   const inp = "w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(123,63,191,0.2)] rounded-lg px-3 py-2.5 text-sm text-[#F8FAFC] placeholder:text-[#F8FAFC]/25 focus:outline-none focus:border-[#7B3FBF] transition-all";
@@ -246,7 +287,7 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
             </div>
             <div>
               <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Пункт сбора</label>
-              <select className={inp} value={form.assembly_point} onChange={e => set('assembly_point', e.target.value)}>
+              <select className={inp} value={form.assembly_point} onChange={e => handleAssemblyPointChange(e.target.value)}>
                 <option value="">Выберите...</option>
                 {assemblyPoints.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
@@ -320,7 +361,14 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
           {/* Comment */}
           <div>
             <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Комментарий</label>
-            <textarea className={inp + ' resize-y min-h-[100px]'} rows={4} value={form.comment} onChange={e => set('comment', e.target.value)} placeholder="Комментарий..." />
+            <textarea 
+              className={inp + ' resize-y min-h-[100px]'} 
+              rows={4} 
+              value={form.comment} 
+              onChange={e => set('comment', e.target.value)} 
+              placeholder="Комментарий..."
+              disabled={candidate && !user} />
+            {candidate && user && <p className="text-xs text-[#F8FAFC]/30 mt-1">От: {user.role === 'admin' ? 'Администратор' : user.role === 'moderator' ? 'Модератор' : 'Система'}</p>}
           </div>
 
           {/* Documents — типизированные слоты, сохраняются в анкету */}
@@ -391,9 +439,10 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
             <button onClick={onClose} className="px-6 py-2.5 text-sm rounded-lg border border-[rgba(255,255,255,0.1)] text-[#F8FAFC]/60 hover:text-[#F8FAFC] transition-all">Отмена</button>
             <button
               onClick={handleSaveClick}
-              disabled={!!stopList}
-              className="px-6 py-2.5 text-sm rounded-lg bg-[#7B3FBF] text-white hover:bg-[#8B4FCF] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-              {candidate ? 'Сохранить' : 'Создать'}
+              disabled={!!stopList || saving}
+              className="flex items-center gap-2 px-6 py-2.5 text-sm rounded-lg bg-[#7B3FBF] text-white hover:bg-[#8B4FCF] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+              {saving && <Loader2 size={14} className="animate-spin" />}
+              {saving ? 'Сохранение...' : candidate ? 'Сохранить' : 'Создать'}
             </button>
           </div>
         </div>

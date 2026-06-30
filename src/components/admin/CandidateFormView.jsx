@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, Download, ExternalLink, User, Phone, MapPin, Calendar, Briefcase, Heart, Shield, Banknote, FileCheck, AlertTriangle } from 'lucide-react';
+import { FileText, Download, ExternalLink, User, Phone, MapPin, Calendar, Briefcase, Heart, Shield, Banknote, FileCheck, AlertTriangle, MessageSquare } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { getMissingRequiredDocs } from '@/lib/docUtils';
 
@@ -7,7 +7,7 @@ import { getMissingRequiredDocs } from '@/lib/docUtils';
  * Компонент для отображения данных анкеты кандидата в режиме чтения.
  * Загружает CandidateForm по candidate_id и показывает все поля.
  */
-export default function CandidateFormView({ candidateId }) {
+export default function CandidateFormView({ candidateId, isCandidateView = false }) {
   const [formRecord, setFormRecord] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -215,6 +215,17 @@ export default function CandidateFormView({ candidateId }) {
           </div>
         </div>
       )}
-    </div>
-  );
-}
+
+      {/* Комментарии (видны только кандидатам, если это просмотр их анкеты) */}
+      {isCandidateView && f.comment && (
+        <div className="bg-[rgba(255,255,255,0.02)] border border-[rgba(123,63,191,0.12)] rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <MessageSquare size={14} className="text-[#7B3FBF]" />
+            <h4 className="text-xs font-bold text-[#7B3FBF] uppercase tracking-widest">Комментарии команды</h4>
+          </div>
+          <div className="text-xs text-[#F8FAFC]/70 whitespace-pre-wrap">{f.comment}</div>
+        </div>
+      )}
+      </div>
+      );
+      }
