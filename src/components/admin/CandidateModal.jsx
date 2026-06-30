@@ -294,7 +294,7 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
             </div>
             <div>
               <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Дата прибытия</label>
-              <input className={inp} type="date" value={form.arrival_date} onChange={e => set('arrival_date', e.target.value)} />
+              <input className={inp + (form.arrival_date ? '' : ' text-[#F8FAFC]/30')} type="date" value={form.arrival_date} onChange={e => set('arrival_date', e.target.value)} placeholder="Выберите дату" />
             </div>
             <div>
               <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Состояние здоровья</label>

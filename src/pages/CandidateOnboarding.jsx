@@ -404,7 +404,7 @@ export default function CandidateOnboarding() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={lbl}>Дата рождения <span className="text-red-500">*</span></label>
-                <input className={inp} type="date" value={form.birth_date} onChange={e => set('birth_date', e.target.value)} required />
+                <input className={inp + (form.birth_date ? '' : ' text-[#F8FAFC]/30')} type="date" value={form.birth_date} onChange={e => set('birth_date', e.target.value)} required />
               </div>
               <div>
                 <label className={lbl}>Гражданство</label>
@@ -464,7 +464,7 @@ export default function CandidateOnboarding() {
               </div>
               <div>
                 <label className={lbl}>Запланированная дата прибытия</label>
-                <input className={inp} type="date" value={form.arrival_date} onChange={e => set('arrival_date', e.target.value)} />
+                <input className={inp + (form.arrival_date ? '' : ' text-[#F8FAFC]/30')} type="date" value={form.arrival_date} onChange={e => set('arrival_date', e.target.value)} />
               </div>
             </div>
 
@@ -486,7 +486,7 @@ export default function CandidateOnboarding() {
                 </div>
                 <div>
                   <label className={lbl}>Дата выдачи</label>
-                  <input className={inp} type="date" value={form.passport_issued_date} onChange={e => set('passport_issued_date', e.target.value)} />
+                  <input className={inp + (form.passport_issued_date ? '' : ' text-[#F8FAFC]/30')} type="date" value={form.passport_issued_date} onChange={e => set('passport_issued_date', e.target.value)} />
                 </div>
                 <div>
                   <label className={lbl}>Код подразделения</label>
@@ -692,7 +692,7 @@ export default function CandidateOnboarding() {
             </div>
             <div>
               <label className={lbl}>Готов приступить к работе с</label>
-              <input className={inp} type="date" value={form.ready_to_start_date} onChange={e => set('ready_to_start_date', e.target.value)} />
+              <input className={inp + (form.ready_to_start_date ? '' : ' text-[#F8FAFC]/30')} type="date" value={form.ready_to_start_date} onChange={e => set('ready_to_start_date', e.target.value)} />
             </div>
           </Section>
 
