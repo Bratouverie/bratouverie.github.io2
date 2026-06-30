@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
       candidates_without_assembly_point: withoutAssembly,
       candidate_cities_not_in_catalog: newCities,
       assembly_points: cities
-        .filter(c => c.lat != null && c.lon != null)
+        .filter(c => c.is_assembly_point === true)
         .map(c => ({ name: c.name, region: c.region || '' }))
         .sort((a, b) => a.name.localeCompare(b.name)),
       open_tickets: tickets.slice(0, 10).map(t => ({

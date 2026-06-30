@@ -203,9 +203,9 @@ export default function Candidates() {
       return;
     }
 
-    // 2. Список городов-точек сбора = все города справочника с координатами, кроме города самого кандидата
+    // 2. Список городов-точек сбора = только города с флагом is_assembly_point, у которых есть координаты
     const assemblyPoints = Object.values(cityCache).filter(
-      city => city.lat != null && city.lon != null && city.name.toLowerCase() !== c.city.toLowerCase()
+      city => city.is_assembly_point === true && city.lat != null && city.lon != null && city.name.toLowerCase() !== c.city.toLowerCase()
     );
 
     if (!assemblyPoints.length) {
