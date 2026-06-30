@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import { MapPin, Loader2, ChevronDown, Check, Search } from 'lucide-react';
+import { MapPin, Loader2, ChevronDown, Check } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
 
 /**
  * Строгий выбор населённого пункта из каталога.
  * — Выбор ТОЛЬКО из списка (клик по элементу)
- * — Свободный ввод текста НЕВОЗМОЖЕН
+ * — Свободный ввод текста НЕВОЗМОЖЕН — поле внутри dropdown только фильтрует
  * — Popover рендерится в портале → не обрезается модалками
+ * — Данные загружаются из entity City (работает без авторизации)
  *
  * @param {string} value — текущее значение (название города)
  * @param {function} onChange — вызывается с названием города при выборе
@@ -29,29 +29,61 @@ export default function CitySelect({
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const onCitySelectRef = useRef(onCitySelect);
+  onCitySelectRef.current = onCitySelect;
 
-  // Загрузка всех городов один раз при монтировании
+  // Загрузка всех городов при монтировании.
+  // Источник: entity City (работает без авторизации на публичных страницах).
+  // Дополнительно вызываем searchCities('_all') для пополнения кэша.
   useEffect(() => {
+    let cancelled = false;
     const loadAll = async () => {
+      let cities = [];
+
+      // 1. Пытаемся пополнить кэш через backend-функцию (может требовать авторизацию)
       try {
         const resp = await base44.functions.invoke('searchCities', { query: '_all' });
-        setAllCities(resp.data?.results || []);
-      } catch (e) {
-        setAllCities([]);
+        cities = resp.data?.results || [];
+      } catch (_) {
+        // Функция недоступна (нет авторизации) — продолжаем с entity
       }
+
+      // 2. Если функция не вернула данные — читаем напрямую из entity City
+      if (cities.length === 0) {
+        try {
+          const cityList = await base44.entities.City.list('-created_date', 500);
+          cities = cityList
+            .filter(c => c.lat != null && c.lon != null)
+            .map(c => ({ name: c.name, region: c.region || '', lat: c.lat, lon: c.lon }));
+        } catch (_) {}
+      }
+
+      // 3. Дедупликация по имени
+      const seen = new Set();
+      cities = cities.filter(c => {
+        const key = c.name.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      if (cancelled) return;
+      setAllCities(cities);
       setLoading(false);
     };
     loadAll();
+    return () => { cancelled = true; };
   }, []);
 
   // Валидация существующего значения при загрузке списка
   useEffect(() => {
-    if (loading || !allCities.length || !onCitySelect) return;
-    if (!value || !value.trim()) { onCitySelect(null); return; }
+    if (loading || !allCities.length) return;
+    const cb = onCitySelectRef.current;
+    if (!cb) return;
+    if (!value || !value.trim()) { cb(null); return; }
     const match = allCities.find(c => c.name.toLowerCase() === value.trim().toLowerCase());
-    onCitySelect(match || null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, allCities]);
+    cb(match || null);
+  }, [loading, allCities, value]);
 
   const filtered = search.trim()
     ? allCities.filter(c => c.name.toLowerCase().includes(search.trim().toLowerCase())).slice(0, 50)
@@ -79,12 +111,12 @@ export default function CitySelect({
         <button
           type="button"
           disabled={loading}
-          className={inputClassName + ' flex items-center justify-between gap-2 text-left w-full cursor-pointer disabled:opacity-50'}
+          className={inputClassName + ' flex items-center justify-between gap-2 text-left w-full cursor-pointer disabled:opacity-50 disabled:cursor-wait'}
         >
           <span className="flex items-center gap-2 truncate min-w-0">
             <MapPin size={14} className="opacity-30 flex-shrink-0" />
             {loading
-              ? <span className="opacity-50">Загрузка списка...</span>
+              ? <span className="opacity-50">Загрузка списка городов...</span>
               : value
                 ? <span className="truncate">{value}</span>
                 : <span className="opacity-30">{placeholder}</span>}
@@ -97,40 +129,41 @@ export default function CitySelect({
       <PopoverContent
         className="p-0 bg-[#0D1B3E] border-[rgba(123,63,191,0.3)]"
         align="start"
-        style={{ width: 'var(--radix-popover-trigger-width)' }}
+        style={{ width: 'var(--radix-popover-trigger-width)', minWidth: '280px' }}
       >
-        <Command shouldFilter={false} className="bg-[#0D1B3E]">
-          <CommandInput
-            placeholder="Поиск города..."
+        {/* Поле поиска — только фильтрует список, НЕ сохраняет введённый текст как значение */}
+        <div className="flex items-center border-b border-[rgba(123,63,191,0.15)] px-3">
+          <svg className="mr-2 h-4 w-4 shrink-0 opacity-50" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input
+            type="text"
             value={search}
-            onValueChange={setSearch}
-            className="text-[#F8FAFC]"
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Поиск города..."
+            className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm text-[#F8FAFC] outline-none placeholder:text-[#F8FAFC]/30"
+            autoFocus
           />
-          <CommandList className="max-h-60">
-            {filtered.length === 0 && !loading ? (
-              <CommandEmpty className="text-[#F8FAFC]/40 py-6 text-center text-sm">
-                Город не найден. Выберите ближайший из списка.
-              </CommandEmpty>
-            ) : (
-              <CommandGroup>
-                {filtered.map((city) => (
-                  <CommandItem
-                    key={city.name + (city.region || '')}
-                    value={city.name}
-                    onSelect={() => handleSelect(city)}
-                    className="text-[#F8FAFC] data-[selected=true]:bg-[rgba(123,63,191,0.15)] cursor-pointer"
-                  >
-                    <Check size={12} className={value === city.name ? 'opacity-100 text-[#7B3FBF]' : 'opacity-0'} />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium truncate">{city.name}</div>
-                      {city.region && <div className="text-xs text-[#F8FAFC]/40 truncate">{city.region}</div>}
-                    </div>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-          </CommandList>
-        </Command>
+        </div>
+        <div className="max-h-60 overflow-y-auto overflow-x-hidden p-1">
+          {filtered.length === 0
+            ? <div className="py-6 text-center text-sm text-[#F8FAFC]/40">
+                {loading ? 'Загрузка...' : 'Город не найден. Выберите ближайший из списка.'}
+              </div>
+            : filtered.map((city) => (
+                <button
+                  key={city.name + (city.region || '')}
+                  type="button"
+                  onClick={() => handleSelect(city)}
+                  className="relative flex w-full cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-[#F8FAFC] outline-none hover:bg-[rgba(123,63,191,0.15)] transition-colors"
+                >
+                  <Check size={12} className={value === city.name ? 'opacity-100 text-[#7B3FBF]' : 'opacity-0'} />
+                  <div className="flex-1 min-w-0 text-left">
+                    <div className="font-medium truncate">{city.name}</div>
+                    {city.region && <div className="text-xs text-[#F8FAFC]/40 truncate">{city.region}</div>}
+                  </div>
+                </button>
+              ))
+          }
+        </div>
       </PopoverContent>
     </Popover>
   );
