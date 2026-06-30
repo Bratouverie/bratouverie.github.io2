@@ -127,7 +127,7 @@ export default function CitySelect({
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="p-0 bg-[#0D1B3E] border-[rgba(123,63,191,0.3)]"
+        className="p-0 bg-[#0D1B3E] border-[rgba(123,63,191,0.3)] z-[100]"
         align="start"
         style={{ width: 'var(--radix-popover-trigger-width)', minWidth: '280px' }}
       >

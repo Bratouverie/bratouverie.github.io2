@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
-import { Plus, Edit2, Trash2, MapPin, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, MapPin, RefreshCw } from 'lucide-react';
 import CitySelect from '@/components/CitySelect';
+
+const INP = "px-3 py-2.5 bg-[rgba(255,255,255,0.04)] border border-[rgba(123,63,191,0.2)] rounded-lg text-sm text-[#F8FAFC] focus:outline-none focus:border-[#7B3FBF]";
 
 export default function AssemblyPoints() {
   const [points, setPoints] = useState([]);
@@ -12,8 +14,7 @@ export default function AssemblyPoints() {
 
   const load = async () => {
     setLoading(true);
-    const list = await base44.entities.AssemblyPoint.list('-created_date', 100);
-    setPoints(list);
+    setPoints(await base44.entities.AssemblyPoint.list('-created_date', 200));
     setLoading(false);
   };
 
@@ -26,11 +27,8 @@ export default function AssemblyPoints() {
   };
 
   const handleSave = async (data, id) => {
-    if (id) {
-      await base44.entities.AssemblyPoint.update(id, data);
-    } else {
-      await base44.entities.AssemblyPoint.create(data);
-    }
+    if (id) await base44.entities.AssemblyPoint.update(id, data);
+    else await base44.entities.AssemblyPoint.create(data);
     setModalOpen(false);
     setEditPoint(null);
     load();
@@ -40,8 +38,6 @@ export default function AssemblyPoints() {
     await base44.entities.AssemblyPoint.update(p.id, { is_active: !p.is_active });
     load();
   };
-
-  const inp = "px-3 py-2.5 bg-[rgba(255,255,255,0.04)] border border-[rgba(123,63,191,0.2)] rounded-lg text-sm text-[#F8FAFC] focus:outline-none focus:border-[#7B3FBF]";
 
   return (
     <div className="min-h-screen bg-[#05070A] text-[#F8FAFC]">
@@ -73,7 +69,7 @@ export default function AssemblyPoints() {
         <div className="glass-card rounded-xl p-4 mb-6">
           <p className="text-sm text-[#F8FAFC]/60 leading-relaxed">
             Пункты сбора используются для автоматического расчёта расстояния от города проживания кандидата.
-            Координаты городов определяются автоматически при выборе города из каталога.
+            Координаты определяются автоматически при выборе города из каталога.
           </p>
         </div>
 
@@ -88,7 +84,6 @@ export default function AssemblyPoints() {
                     <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider">Название</th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider">Город</th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider">Адрес</th>
-                    <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider whitespace-nowrap">Координаты</th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider">Статус</th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider">Действия</th>
                   </tr>
@@ -96,17 +91,11 @@ export default function AssemblyPoints() {
                 <tbody>
                   {points.map(p => (
                     <tr key={p.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(123,63,191,0.06)] transition-colors">
-                      <td className="px-4 py-3">
-                        <div className="font-bold text-[#F8FAFC]">{p.name}</div>
-                        {p.comment && <div className="text-xs text-[#F8FAFC]/35 mt-0.5 truncate max-w-[200px]">{p.comment}</div>}
-                      </td>
+                      <td className="px-4 py-3 font-bold text-[#F8FAFC]">{p.name}</td>
                       <td className="px-4 py-3 text-[#F8FAFC]/60">
                         <div className="flex items-center gap-1.5"><MapPin size={12} className="text-[#7B3FBF]/60" />{p.city || '—'}</div>
                       </td>
                       <td className="px-4 py-3 text-xs text-[#F8FAFC]/55">{p.address || '—'}</td>
-                      <td className="px-4 py-3 text-xs text-[#F8FAFC]/40 whitespace-nowrap font-mono">
-                        {p.lat != null ? `${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}` : '—'}
-                      </td>
                       <td className="px-4 py-3">
                         <button onClick={() => toggleActive(p)}
                           className={`text-xs px-2 py-0.5 rounded font-medium border transition-all ${p.is_active !== false ? 'bg-green-500/15 text-green-400 border-green-500/25' : 'bg-red-500/10 text-red-400/70 border-red-500/20'}`}>
@@ -128,7 +117,7 @@ export default function AssemblyPoints() {
                     </tr>
                   ))}
                   {points.length === 0 && (
-                    <tr><td colSpan={6} className="text-center py-12 text-[#F8FAFC]/30">Пункты сбора не добавлены</td></tr>
+                    <tr><td colSpan={5} className="text-center py-12 text-[#F8FAFC]/30">Пункты сбора не добавлены</td></tr>
                   )}
                 </tbody>
               </table>
@@ -145,30 +134,19 @@ export default function AssemblyPoints() {
 }
 
 function AssemblyPointModal({ point, onSave, onClose }) {
-  const [form, setForm] = useState({
-    name: point?.name || '',
-    city: point?.city || '',
-    address: point?.address || '',
-    lat: point?.lat ?? '',
-    lon: point?.lon ?? '',
-    is_active: point?.is_active !== false,
-    comment: point?.comment || '',
-  });
+  const [city, setCity] = useState(point?.city || '');
+  const [address, setAddress] = useState(point?.address || '');
+  const [coords, setCoords] = useState({ lat: point?.lat ?? null, lon: point?.lon ?? null });
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  // При выборе города из каталога — автоматически подставляем координаты и название
-  const handleCitySelect = (city) => {
-    setForm(f => ({
-      ...f,
-      city: city.name,
-      lat: city.lat,
-      lon: city.lon,
-      name: f.name || city.name,
-    }));
+  const handleCitySelect = (c) => {
+    setCity(c.name);
+    setCoords({ lat: c.lat, lon: c.lon });
   };
 
-  const inp = "w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(123,63,191,0.2)] rounded-lg px-3 py-2.5 text-sm text-[#F8FAFC] placeholder:text-[#F8FAFC]/25 focus:outline-none focus:border-[#7B3FBF] transition-all";
+  const handleSave = () => {
+    if (!city) { alert('Укажите город'); return; }
+    onSave({ name: city, city, address, lat: coords.lat, lon: coords.lon, is_active: point?.is_active !== false }, point?.id);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -182,24 +160,20 @@ function AssemblyPointModal({ point, onSave, onClose }) {
           <div>
             <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Город <span className="text-red-400">*</span></label>
             <CitySelect
-              value={form.city}
-              onChange={val => set('city', val)}
+              value={city}
+              onChange={setCity}
               onCitySelect={handleCitySelect}
-              inputClassName={inp}
-              placeholder="Начните вводить город..."
+              inputClassName={INP + ' w-full'}
+              placeholder="Выберите город..."
             />
           </div>
           <div>
             <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Адрес</label>
-            <input className={inp} value={form.address} onChange={e => set('address', e.target.value)} placeholder="г. Хабаровск, ул. Примерная, д. 1" />
+            <input className={INP + ' w-full'} value={address} onChange={e => setAddress(e.target.value)} placeholder="ул. Примерная, д. 1" />
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button onClick={onClose} className="px-6 py-2.5 text-sm rounded-lg border border-[rgba(255,255,255,0.1)] text-[#F8FAFC]/60 hover:text-[#F8FAFC] transition-all">Отмена</button>
-            <button onClick={() => {
-                if (!form.city) { alert('Укажите город'); return; }
-                const saveData = { ...form, name: form.name || form.city };
-                onSave(saveData, point?.id);
-              }}
+            <button onClick={handleSave}
               className="px-6 py-2.5 text-sm rounded-lg bg-[#7B3FBF] text-white hover:bg-[#8B4FCF] font-bold transition-all">
               {point ? 'Сохранить' : 'Создать'}
             </button>
