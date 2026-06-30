@@ -28,9 +28,8 @@ export function getMissingRequiredDocs(docs = []) {
  */
 export function hasMissingRequiredDocs(candidate) {
   if (!candidate) return false;
+  // Проверяем полноту только для завершённых анкет
+  if (candidate.form_status !== 'completed') return false;
   const docs = candidate.documents || [];
-  const missing = getMissingRequiredDocs(docs);
-  if (candidate.form_status === 'completed') return missing.length > 0;
-  if (docs.length > 0) return missing.length > 0;
-  return false;
+  return getMissingRequiredDocs(docs).length > 0;
 }

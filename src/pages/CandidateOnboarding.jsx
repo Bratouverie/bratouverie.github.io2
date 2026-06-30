@@ -282,6 +282,7 @@ export default function CandidateOnboarding() {
         health_details: form.health_notes,
         form_status: 'completed',
         form_submitted_at: now,
+        documents: uploadedDocs,
       });
     }
     try {

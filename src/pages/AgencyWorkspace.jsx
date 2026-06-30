@@ -57,15 +57,32 @@ export default function AgencyWorkspace() {
       base44.entities.Agency.filter({ id: session.id }),
       base44.entities.Candidate.filter({ agency_id: session.id }, '-created_date', 500),
     ]);
-    // Загружаем пункты сбора и справочник городов
-    const [aps, cities] = await Promise.all([
+    // Загружаем пункты сбора, справочник городов и анкеты
+    const [aps, cities, forms] = await Promise.all([
       base44.entities.AssemblyPoint.filter({ is_active: true }),
       base44.entities.City.list('-created_date', 500),
+      base44.entities.CandidateForm.filter({ status: 'completed' }, '-created_date', 500),
     ]);
+    // Мёрджим документы из завершённых анкет в карточки кандидатов
+    const formDocsByCandidate = {};
+    forms.forEach(f => {
+      if (f.candidate_id && f.uploaded_docs?.length) {
+        formDocsByCandidate[f.candidate_id] = f.uploaded_docs;
+      }
+    });
+    const mergedCands = cands.map(c => {
+      const formDocs = formDocsByCandidate[c.id];
+      if (formDocs?.length) {
+        const existingUrls = new Set((c.documents || []).map(d => d.url).filter(Boolean));
+        const newDocs = formDocs.filter(fd => !existingUrls.has(fd.url));
+        return { ...c, documents: [...(c.documents || []), ...newDocs] };
+      }
+      return c;
+    });
     const cityMap = {};
     cities.forEach(c => { if (c.name) cityMap[c.name.toLowerCase()] = c; });
     setAgency(agencyList[0] || null);
-    setCandidates(cands);
+    setCandidates(mergedCands);
     setAssemblyPoints(aps);
     setCityCache(cityMap);
     setLoading(false);

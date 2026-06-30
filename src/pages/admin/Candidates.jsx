@@ -51,16 +51,34 @@ export default function Candidates() {
       base44.entities.Candidate.list('-created_date', 500),
       base44.entities.Agency.list('-created_date', 200),
     ]);
-    // Параллельно загружаем пункты сбора и справочник городов
-    const [aps, cities] = await Promise.all([
+    // Параллельно загружаем пункты сбора, справочник городов и анкеты
+    const [aps, cities, forms] = await Promise.all([
       base44.entities.AssemblyPoint.filter({ is_active: true }),
       base44.entities.City.list('-created_date', 500),
+      base44.entities.CandidateForm.filter({ status: 'completed' }, '-created_date', 500),
     ]);
+    // Мёрджим документы из завершённых анкет в карточки кандидатов
+    const formDocsByCandidate = {};
+    forms.forEach(f => {
+      if (f.candidate_id && f.uploaded_docs?.length) {
+        formDocsByCandidate[f.candidate_id] = f.uploaded_docs;
+      }
+    });
     const cityMap = {};
     cities.forEach(c => { if (c.name) cityMap[c.name.toLowerCase()] = c; });
     const activeAg = ag.filter(a => !a.deleted_at);
     const activeAgIds = new Set(activeAg.map(a => a.id));
-    const filtered = cand.filter(c => !c.agency_id || activeAgIds.has(c.agency_id));
+    const filtered = cand
+      .filter(c => !c.agency_id || activeAgIds.has(c.agency_id))
+      .map(c => {
+        const formDocs = formDocsByCandidate[c.id];
+        if (formDocs?.length) {
+          const existingUrls = new Set((c.documents || []).map(d => d.url).filter(Boolean));
+          const newDocs = formDocs.filter(fd => !existingUrls.has(fd.url));
+          return { ...c, documents: [...(c.documents || []), ...newDocs] };
+        }
+        return c;
+      });
     setCandidates(filtered);
     setDuplicateIds(findDuplicateIds(filtered));
     setAgencies(activeAg);
