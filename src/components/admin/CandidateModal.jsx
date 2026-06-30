@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { uploadWithRetry, validateFile } from '@/lib/uploadWithRetry';
 import CandidateFormView from './CandidateFormView';
 import CitySelect from '@/components/CitySelect';
+import { getMissingRequiredDocs } from '@/lib/docUtils';
 
 const POSITIONS = ['Разнорабочий','Строитель','Водитель B','Водитель C','Водитель CE','Водитель D','Автослесарь','Инженер связи','Оператор БПЛА','Взрывотехник','Медицинский работник','Охранник'];
 
@@ -150,6 +151,8 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
 
   const inp = "w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(123,63,191,0.2)] rounded-lg px-3 py-2.5 text-sm text-[#F8FAFC] placeholder:text-[#F8FAFC]/25 focus:outline-none focus:border-[#7B3FBF] transition-all";
   const paymentAmount = form.payment_basis === 'Готовится к отправке' ? '100 000 ₽' : form.payment_basis === 'Отказался от отправки' ? 'Не предусмотрена' : '—';
+  const allDocs = [...(form.documents || []), ...formDocs];
+  const missingDocs = getMissingRequiredDocs(allDocs);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -174,6 +177,19 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
         )}
 
         <div className={`p-6 space-y-5 ${activeTab === 'card' || !candidate?.id ? '' : 'hidden'}`}>
+          {/* Предупреждение о неполных документах */}
+          {candidate?.id && missingDocs.length > 0 && (
+            <div className="flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+              <AlertTriangle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="text-sm font-bold text-red-400">Неполный пакет документов</div>
+                <div className="text-xs text-red-300/80 mt-1">
+                  Не хватает: {missingDocs.map(d => d.label).join(', ')}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Стоп-лист предупреждение */}
           {stopList && (
             <div className="flex items-start gap-3 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">

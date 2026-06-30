@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { FileText, Download, ExternalLink, User, Phone, MapPin, Calendar, Briefcase, Heart, Shield, Banknote, FileCheck } from 'lucide-react';
+import { FileText, Download, ExternalLink, User, Phone, MapPin, Calendar, Briefcase, Heart, Shield, Banknote, FileCheck, AlertTriangle } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
+import { getMissingRequiredDocs } from '@/lib/docUtils';
 
 /**
  * Компонент для отображения данных анкеты кандидата в режиме чтения.
@@ -177,6 +178,21 @@ export default function CandidateFormView({ candidateId }) {
           <Field label="Готов начать с" value={f.ready_to_start_date} />
         </Section>
       )}
+
+      {/* Предупреждение о неполных документах */}
+      {(() => {
+        const missing = getMissingRequiredDocs(docs);
+        if (missing.length === 0) return null;
+        return (
+          <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-500/8 border border-red-500/25 text-xs text-red-400">
+            <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+            <div>
+              <div className="font-bold">Не хватает обязательных документов:</div>
+              <div className="text-red-300/70 mt-0.5">{missing.map(d => d.label).join(', ')}</div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Документы из анкеты */}
       {docs.length > 0 && (

@@ -5,6 +5,7 @@ import { Plus, Download, Search, Trash2, Edit2, X, MessageSquare, Shield, Stetho
 import CandidateModal from '../../components/admin/CandidateModal';
 import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card';
 import { findDuplicateIds } from '@/lib/candidateDuplicates';
+import { hasMissingRequiredDocs, getMissingRequiredDocs } from '@/lib/docUtils';
 import { logCandidateAction } from '@/lib/candidateLogger';
 import { notifyStatusChange } from '@/lib/notifyStatusChange';
 import { findNearestAssemblyPoint, formatDistance } from '@/lib/geoUtils';
@@ -35,7 +36,7 @@ export default function Candidates() {
   const [search, setSearch]         = useState('');
   const [modalOpen, setModalOpen]   = useState(false);
   const [editCandidate, setEditCandidate] = useState(null);
-  const [filters, setFilters] = useState({ agency: '', position: '', sb_check: '', medical_check: '', form_status: '' });
+  const [filters, setFilters] = useState({ agency: '', position: '', sb_check: '', medical_check: '', form_status: '', incomplete_docs: false });
   const [showArchive, setShowArchive] = useState(false);
   const [duplicateIds, setDuplicateIds] = useState(new Set());
   const [currentUser, setCurrentUser] = useState(null);
@@ -167,7 +168,8 @@ export default function Candidates() {
       const matchSB     = !filters.sb_check || c.sb_check === filters.sb_check;
       const matchMed    = !filters.medical_check || c.medical_check === filters.medical_check;
       const matchForm   = !filters.form_status || c.form_status === filters.form_status;
-      return matchSearch && matchAgency && matchPos && matchSB && matchMed && matchForm;
+      const matchDocs   = !filters.incomplete_docs || hasMissingRequiredDocs(c);
+      return matchSearch && matchAgency && matchPos && matchSB && matchMed && matchForm && matchDocs;
     });
   };
 
@@ -318,8 +320,13 @@ export default function Candidates() {
             <option value="completed">Анкета заполнена</option>
             <option value="pending">Анкета не заполнена</option>
           </select>
+          <button
+            onClick={() => setF('incomplete_docs', !filters.incomplete_docs)}
+            className={`flex items-center gap-2 px-4 py-2 text-xs rounded border transition-all whitespace-nowrap ${filters.incomplete_docs ? 'border-red-500/50 text-red-400 bg-red-500/10' : 'border-[rgba(255,255,255,0.1)] text-[#F8FAFC]/40 hover:text-red-400'}`}>
+            <AlertTriangle size={13} /> Без обяз. документов
+          </button>
           {Object.values(filters).some(Boolean) && (
-            <button onClick={() => setFilters({ agency:'', position:'', sb_check:'', medical_check:'', form_status:'' })}
+            <button onClick={() => setFilters({ agency:'', position:'', sb_check:'', medical_check:'', form_status:'', incomplete_docs: false })}
               className="flex items-center gap-1 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 rounded-lg transition-all">
               <X size={12} /> Сбросить
             </button>
@@ -367,6 +374,25 @@ export default function Candidates() {
                               <Tooltip text="Дубль: кандидат с таким ФИО и датой рождения уже есть в базе">
                                 <AlertTriangle size={13} className="text-red-400 flex-shrink-0"/>
                               </Tooltip>
+                            )}
+                            {hasMissingRequiredDocs(c) && (
+                              <HoverCard>
+                                <HoverCardTrigger asChild>
+                                  <span className="cursor-help flex-shrink-0">
+                                    <AlertTriangle size={13} className="text-red-400"/>
+                                  </span>
+                                </HoverCardTrigger>
+                                <HoverCardContent className="w-64 bg-[#0D1B3E] border-red-500/30 text-[#F8FAFC]">
+                                  <div className="space-y-1.5 text-xs">
+                                    <div className="font-bold text-red-400">Не хватает обязательных документов:</div>
+                                    {getMissingRequiredDocs(c.documents || []).map(m => (
+                                      <div key={m.id} className="text-[#F8FAFC]/60 flex items-center gap-1.5">
+                                        <span className="text-red-400">•</span> {m.label}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </HoverCardContent>
+                              </HoverCard>
                             )}
                             <div>
                               <div className={`font-bold ${isDuplicate ? 'text-red-300' : 'text-[#F8FAFC]'}`}>{c.full_name}</div>

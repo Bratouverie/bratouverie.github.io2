@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Plus, Edit2, Trash2, LogOut, Building2, Users, Search, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, X, ClipboardCopy, Download, Archive, ArchiveRestore, BookOpen } from 'lucide-react';
+import { Plus, Edit2, Trash2, LogOut, Building2, Users, Search, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, X, ClipboardCopy, Download, Archive, ArchiveRestore, BookOpen, AlertTriangle } from 'lucide-react';
 import CandidateModal from '../components/admin/CandidateModal';
 import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card';
 import { logCandidateAction } from '@/lib/candidateLogger';
 import { notifyStatusChange } from '@/lib/notifyStatusChange';
 import { findNearestAssemblyPoint, formatDistance } from '@/lib/geoUtils';
+import { hasMissingRequiredDocs, getMissingRequiredDocs } from '@/lib/docUtils';
 
 const POSITIONS = ['Разнорабочий','Строитель','Водитель B','Водитель C','Водитель CE','Водитель D','Автослесарь','Инженер связи','Оператор БПЛА','Взрывотехник','Медицинский работник','Охранник'];
 const SB_COLORS  = { 'Не проверялся': 'text-[#F8FAFC]/40', 'На проверке': 'text-yellow-400', 'Согласован': 'text-green-400', 'Не согласован': 'text-red-400' };
@@ -36,7 +37,7 @@ export default function AgencyWorkspace() {
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [search, setSearch]       = useState('');
-  const [filters, setFilters]     = useState({ position: '', sb_check: '', medical_check: '' });
+  const [filters, setFilters] = useState({ position: '', sb_check: '', medical_check: '', incomplete_docs: false });
   const [modalOpen, setModalOpen] = useState(false);
   const [editCandidate, setEditCandidate] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
@@ -173,7 +174,8 @@ export default function AgencyWorkspace() {
       const matchPos = !filters.position || c.position === filters.position;
       const matchSB  = !filters.sb_check || c.sb_check === filters.sb_check;
       const matchMed = !filters.medical_check || c.medical_check === filters.medical_check;
-      return matchSearch && matchPos && matchSB && matchMed;
+      const matchDocs = !filters.incomplete_docs || hasMissingRequiredDocs(c);
+      return matchSearch && matchPos && matchSB && matchMed && matchDocs;
     });
   };
 
@@ -288,8 +290,13 @@ export default function AgencyWorkspace() {
             <option value="">Медкомиссия</option>
             {['Не проверялся','Прошёл','Не прошёл'].map(s => <option key={s} value={s}>{s}</option>)}
           </select>
+          <button
+            onClick={() => setF('incomplete_docs', !filters.incomplete_docs)}
+            className={`flex items-center gap-2 px-4 py-2 text-xs rounded border transition-all whitespace-nowrap ${filters.incomplete_docs ? 'border-red-500/50 text-red-400 bg-red-500/10' : 'border-[rgba(255,255,255,0.1)] text-[#F8FAFC]/40 hover:text-red-400'}`}>
+            <AlertTriangle size={13} /> Без обяз. док.
+          </button>
           {hasFilters && (
-            <button onClick={() => { setFilters({ position: '', sb_check: '', medical_check: '' }); setSearch(''); }}
+            <button onClick={() => { setFilters({ position: '', sb_check: '', medical_check: '', incomplete_docs: false }); setSearch(''); }}
               className="flex items-center gap-1 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 rounded-lg transition-all">
               <X size={12} /> Сбросить
             </button>
@@ -335,7 +342,28 @@ export default function AgencyWorkspace() {
                   {displayed.map(c => (
                     <tr key={c.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(123,63,191,0.06)] transition-colors">
                       <td className="px-4 py-3">
-                        <div className="font-bold text-[#F8FAFC]">{c.full_name}</div>
+                        <div className="flex items-center gap-1.5">
+                          {hasMissingRequiredDocs(c) && (
+                            <HoverCard>
+                              <HoverCardTrigger asChild>
+                                <span className="cursor-help flex-shrink-0">
+                                  <AlertTriangle size={13} className="text-red-400"/>
+                                </span>
+                              </HoverCardTrigger>
+                              <HoverCardContent className="w-64 bg-[#0D1B3E] border-red-500/30 text-[#F8FAFC]">
+                                <div className="space-y-1.5 text-xs">
+                                  <div className="font-bold text-red-400">Не хватает обязательных документов:</div>
+                                  {getMissingRequiredDocs(c.documents || []).map(m => (
+                                    <div key={m.id} className="text-[#F8FAFC]/60 flex items-center gap-1.5">
+                                      <span className="text-red-400">•</span> {m.label}
+                                    </div>
+                                  ))}
+                                </div>
+                              </HoverCardContent>
+                            </HoverCard>
+                          )}
+                          <div className="font-bold text-[#F8FAFC]">{c.full_name}</div>
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-[#F8FAFC]/60 text-xs whitespace-nowrap">{c.position || '—'}</td>
                       <td className="px-4 py-3 text-xs text-[#F8FAFC]/55">

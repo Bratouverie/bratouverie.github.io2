@@ -4,6 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { CheckCircle, AlertCircle, AlertTriangle, Loader2, ExternalLink, ChevronDown, ChevronUp, Info, Upload, FileText, Trash2, Download } from 'lucide-react';
 import { uploadWithRetry, validateFile } from '@/lib/uploadWithRetry';
 import CitySelect from '@/components/CitySelect';
+import { getMissingRequiredDocs } from '@/lib/docUtils';
 
 const POSITIONS = ['Разнорабочий','Строитель','Водитель B','Водитель C','Водитель CE','Водитель D','Автослесарь','Инженер связи','Оператор БПЛА','Взрывотехник','Медицинский работник','Охранник'];
 const EDUCATION_LEVELS = ['Среднее','Среднее специальное','Неполное высшее','Высшее','Несколько высших'];
@@ -368,6 +369,17 @@ export default function CandidateOnboarding() {
             </div>
           )}
         </div>
+
+        {(() => {
+          const missing = getMissingRequiredDocs(uploadedDocs);
+          if (missing.length === 0) return null;
+          return (
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-red-900/20 border border-red-800/40 text-xs text-red-400">
+              <AlertTriangle size={14} className="flex-shrink-0" />
+              <span>Не загружено обязательных документов: {missing.length} из 3 — {missing.map(d => d.label).join(', ')}</span>
+            </div>
+          );
+        })()}
 
         <form onSubmit={handleSubmit} className="space-y-3">
 
