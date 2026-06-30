@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { X, Upload, Trash2, Download, FileText, AlertTriangle, Loader2 } from 'lucide-react';
+import { X, Upload, Trash2, Download, FileText, AlertTriangle, Loader2, MapPin } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { uploadWithRetry, validateFile } from '@/lib/uploadWithRetry';
 import CandidateFormView from './CandidateFormView';
 import CitySelect from '@/components/CitySelect';
 import { ALL_DOC_TYPES, getMissingRequiredDocs } from '@/lib/docUtils';
+import { haversineDistance, formatDistance } from '@/lib/geoUtils';
 
 const POSITIONS = ['Разнорабочий','Строитель','Водитель B','Водитель C','Водитель CE','Водитель D','Автослесарь','Инженер связи','Оператор БПЛА','Взрывотехник','Медицинский работник','Охранник'];
 
@@ -39,6 +40,8 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
   const [uploadingDocType, setUploadingDocType] = useState(null);
   const [uploadErrors, setUploadErrors] = useState({});
   const [activeTab, setActiveTab]   = useState('card');
+  const [assemblyPoints, setAssemblyPoints] = useState([]);
+  const [cityObject, setCityObject] = useState(null);
 
   useEffect(() => {
     if (!candidate?.id) return;
@@ -56,6 +59,10 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
       }
     });
   }, [candidate?.id]);
+
+  useEffect(() => {
+    base44.entities.AssemblyPoint.filter({ is_active: true }).then(setAssemblyPoints).catch(() => {});
+  }, []);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -113,6 +120,10 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
 
   const handleSaveClick = async () => {
     if (stopList) return;
+    if (form.city && !cityObject) {
+      alert('Пожалуйста, выберите населённый пункт из списка. Текстовый ввод не допускается — выберите ближайший из каталога.');
+      return;
+    }
     // Сохраняем документы в анкету (единый источник истины)
     if (candidateFormId) {
       await base44.entities.CandidateForm.update(candidateFormId, { uploaded_docs: formDocs });
@@ -222,6 +233,7 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
               <CitySelect
                 value={form.city}
                 onChange={val => set('city', val)}
+                onCitySelect={setCityObject}
                 inputClassName={inp}
                 placeholder="г. Хабаровск"
               />
@@ -229,7 +241,25 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
             {!isAgencyMode && (
               <div>
                 <label className="block text-xs text-[#F8FAFC]/40 mb-1.5">Пункт сбора</label>
-                <input className={inp} value={form.assembly_point} onChange={e => set('assembly_point', e.target.value)} placeholder="г. Хабаровск" />
+                <select className={inp} value={form.assembly_point} onChange={e => set('assembly_point', e.target.value)}>
+                  <option value="">Выберите пункт сбора...</option>
+                  {assemblyPoints.map(ap => (
+                    <option key={ap.id} value={ap.name}>{ap.name}{ap.city ? ` (${ap.city})` : ''}</option>
+                  ))}
+                  {form.assembly_point && !assemblyPoints.some(ap => ap.name === form.assembly_point) && (
+                    <option value={form.assembly_point}>{form.assembly_point} (устаревшее значение)</option>
+                  )}
+                </select>
+                {(() => {
+                  const ap = assemblyPoints.find(a => a.name === form.assembly_point);
+                  if (!ap || !cityObject || ap.lat == null) return null;
+                  const dist = haversineDistance(cityObject.lat, cityObject.lon, ap.lat, ap.lon);
+                  return dist != null ? (
+                    <div className="text-xs text-[#C9A84C] font-bold mt-1.5 flex items-center gap-1">
+                      <MapPin size={11} /> Расстояние: {formatDistance(dist)}
+                    </div>
+                  ) : null;
+                })()}
               </div>
             )}
             <div>

@@ -264,13 +264,29 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { query } = body;
 
+    const base44 = createClientFromRequest(req);
+    const sr = base44.asServiceRole;
+
+    // Special mode: return ALL cities for strict select dropdowns
+    if (query === '_all') {
+      const cached = await sr.entities.City.list('-created_date', 500);
+      const cacheNames = new Set(cached.map(c => (c.name || '').toLowerCase()));
+      const newCities = DEDUPED_CITIES.filter(c => !cacheNames.has(c.name.toLowerCase()));
+      if (newCities.length > 0) {
+        await Promise.allSettled(newCities.map(c =>
+          sr.entities.City.create({
+            name: c.name, region: c.region || '', lat: c.lat, lon: c.lon, source: 'builtin',
+          })
+        ));
+      }
+      return Response.json({ results: DEDUPED_CITIES.map(c => ({ ...c, source: 'builtin' })) });
+    }
+
     if (!query || typeof query !== 'string' || query.trim().length < 2) {
       return Response.json({ results: [] });
     }
 
     const q = query.trim().toLowerCase();
-    const base44 = createClientFromRequest(req);
-    const sr = base44.asServiceRole;
 
     // 1. Локальный кэш — частичное совпадение по имени
     const cached = await sr.entities.City.list('-created_date', 500);

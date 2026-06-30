@@ -1,18 +1,20 @@
 import { useState, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { MapPin, Loader2 } from 'lucide-react';
+import { MapPin, Loader2, AlertTriangle } from 'lucide-react';
 
 /**
- * Компонент автодополнения городов.
- * Использует backend-функцию searchCities (статичный JSON с GitHub + локальный кэш City).
+ * Строгий выбор населённого пункта из каталога.
+ * - Загружает полный список городов один раз при монтировании (через searchCities '_all')
+ * - Фильтрует локально (мгновенно, без сетевых запросов)
+ * - Выбор ТОЛЬКО из списка — кликом по элементу
+ * - Если введённого текста нет в базе — показывает подсказку
  *
  * @param {string} value — текущее значение (название города)
- * @param {function} onChange — вызывается с названием города при ручном вводе
- * @param {function} onCitySelect — (опционально) вызывается с полным объектом города { name, region, lat, lon } при выборе из списка
- * @param {string} inputClassName — CSS-классы для input (наследуются от родительской формы)
+ * @param {function} onChange — вызывается с названием города при вводе/выборе
+ * @param {function} onCitySelect — вызывается с объектом города { name, region, lat, lon } или null
+ * @param {string} inputClassName — CSS-классы для input
  * @param {string} placeholder
  * @param {boolean} readOnly
- * @param {string} dropdownClassName — опциональный класс для dropdown
  */
 export default function CitySelect({
   value,
@@ -21,20 +23,50 @@ export default function CitySelect({
   inputClassName = '',
   placeholder = 'Начните вводить город...',
   readOnly = false,
-  dropdownClassName = '',
 }) {
+  const [allCities, setAllCities] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState(value || '');
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [highlighted, setHighlighted] = useState(-1);
-  const debounceRef = useRef(null);
   const containerRef = useRef(null);
 
-  // Синхронизируем внешнее значение
+  // Загрузка всех городов один раз при монтировании
+  useEffect(() => {
+    const loadAll = async () => {
+      try {
+        const resp = await base44.functions.invoke('searchCities', { query: '_all' });
+        setAllCities(resp.data?.results || []);
+      } catch (e) {
+        setAllCities([]);
+      }
+      setLoading(false);
+    };
+    loadAll();
+  }, []);
+
+  // Синхронизация внешнего значения
   useEffect(() => {
     setQuery(value || '');
   }, [value]);
+
+  // Проверка валидности и уведомление родителя
+  const validateAndNotify = (text) => {
+    if (!onCitySelect) return;
+    if (!text || !text.trim() || !allCities.length) {
+      onCitySelect(null);
+      return;
+    }
+    const match = allCities.find(c => c.name.toLowerCase() === text.trim().toLowerCase());
+    onCitySelect(match || null);
+  };
+
+  // Валидация при загрузке списка
+  useEffect(() => {
+    if (loading || !allCities.length) return;
+    validateAndNotify(query);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, allCities]);
 
   // Закрытие dropdown при клике вне компонента
   useEffect(() => {
@@ -47,27 +79,15 @@ export default function CitySelect({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const search = async (q) => {
-    if (q.trim().length < 2) {
-      setResults([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      const resp = await base44.functions.invoke('searchCities', { query: q });
-      setResults(resp.data?.results || []);
-      setShowDropdown(true);
-    } catch (e) {
-      setResults([]);
-    }
-    setLoading(false);
-  };
+  // Локальная фильтрация — мгновенно
+  const filtered = query.trim().length >= 1
+    ? allCities.filter(c => c.name.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 30)
+    : allCities.slice(0, 30);
 
   const handleChange = (val) => {
     setQuery(val);
     onChange(val);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => search(val), 350);
+    validateAndNotify(val);
   };
 
   const selectCity = (city) => {
@@ -79,31 +99,27 @@ export default function CitySelect({
   };
 
   const handleKeyDown = (e) => {
-    if (!showDropdown || results.length === 0) return;
+    if (!showDropdown || filtered.length === 0) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setHighlighted(h => Math.min(h + 1, results.length - 1));
+      setHighlighted(h => Math.min(h + 1, filtered.length - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setHighlighted(h => Math.max(h - 1, -1));
     } else if (e.key === 'Enter' && highlighted >= 0) {
       e.preventDefault();
-      selectCity(results[highlighted]);
+      selectCity(filtered[highlighted]);
     } else if (e.key === 'Escape') {
       setShowDropdown(false);
     }
   };
 
   if (readOnly) {
-    return (
-      <input
-        className={inputClassName}
-        value={query}
-        readOnly
-        placeholder={placeholder}
-      />
-    );
+    return <input className={inputClassName} value={query} readOnly placeholder={placeholder} />;
   }
+
+  const isValidated = query.trim() && allCities.some(c => c.name.toLowerCase() === query.trim().toLowerCase());
+  const showHint = query.trim().length >= 2 && !isValidated && !loading;
 
   return (
     <div ref={containerRef} className="relative">
@@ -114,17 +130,23 @@ export default function CitySelect({
           value={query}
           onChange={e => handleChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={() => { if (results.length) setShowDropdown(true); }}
-          placeholder={placeholder}
+          onFocus={() => setShowDropdown(true)}
+          placeholder={loading ? 'Загрузка списка...' : placeholder}
           autoComplete="off"
         />
-        {loading && (
-          <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7B3FBF] animate-spin" />
-        )}
+        {loading && <Loader2 size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7B3FBF] animate-spin" />}
       </div>
-      {showDropdown && results.length > 0 && (
-        <div className={`absolute z-50 w-full mt-1 bg-[#0D1B3E] border border-[rgba(123,63,191,0.3)] rounded-lg shadow-xl max-h-60 overflow-y-auto ${dropdownClassName}`}>
-          {results.map((city, i) => (
+
+      {showHint && (
+        <div className="mt-1.5 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-xs text-yellow-400 flex items-start gap-1.5">
+          <AlertTriangle size={12} className="flex-shrink-0 mt-0.5" />
+          <span>Населённого пункта нет в базе. Выберите ближайший населённый пункт из списка.</span>
+        </div>
+      )}
+
+      {showDropdown && filtered.length > 0 && (
+        <div className="absolute z-50 w-full mt-1 bg-[#0D1B3E] border border-[rgba(123,63,191,0.3)] rounded-lg shadow-xl max-h-60 overflow-y-auto">
+          {filtered.map((city, i) => (
             <button
               key={i}
               type="button"
@@ -134,15 +156,8 @@ export default function CitySelect({
                 i === highlighted ? 'bg-[rgba(123,63,191,0.15)]' : 'hover:bg-[rgba(123,63,191,0.08)]'
               }`}
             >
-              <div className="text-[#F8FAFC] font-medium flex items-center gap-1.5">
-                {city.source === 'cache' && (
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#C9A84C] flex-shrink-0" title="из кэша" />
-                )}
-                {city.name}
-              </div>
-              {city.region && (
-                <div className="text-xs text-[#F8FAFC]/40">{city.region}</div>
-              )}
+              <div className="text-[#F8FAFC] font-medium">{city.name}</div>
+              {city.region && <div className="text-xs text-[#F8FAFC]/40">{city.region}</div>}
             </button>
           ))}
         </div>

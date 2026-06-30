@@ -164,6 +164,7 @@ export default function CandidateOnboarding() {
   const [uploadedDocs, setUploadedDocs] = useState([]);
   const [uploadingDocType, setUploadingDocType] = useState(null);
   const [uploadErrors, setUploadErrors] = useState({});
+  const [cityObject, setCityObject] = useState(null);
 
   useEffect(() => {
     const loadForm = async () => {
@@ -251,6 +252,9 @@ export default function CandidateOnboarding() {
     if (!form.consent_given) { alert('Необходимо дать согласие на обработку персональных данных'); return; }
     if (!form.full_name || !form.birth_date || !form.phone) {
       alert('Пожалуйста, заполните обязательные поля: ФИО, дату рождения, телефон'); return;
+    }
+    if (form.city && !cityObject) {
+      alert('Пожалуйста, выберите населённый пункт из списка (введите и выберите из выпадающего списка).'); return;
     }
     setSubmitting(true);
     const now = new Date().toISOString();
@@ -396,6 +400,7 @@ export default function CandidateOnboarding() {
               <CitySelect
                 value={form.city}
                 onChange={val => { set('city', val); if (birthPlaceSameAsCity) set('birth_place', val); }}
+                onCitySelect={setCityObject}
                 inputClassName={inp}
                 placeholder="г. Хабаровск"
               />
