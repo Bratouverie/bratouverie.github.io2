@@ -5,6 +5,9 @@ Deno.serve(async (req) => {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    
+    // Allow any authenticated user to create task notifications
+    if (!user.id) return Response.json({ error: 'Invalid user session' }, { status: 401 });
 
     const body = await req.json();
     const { agency_id, message, link, category } = body;

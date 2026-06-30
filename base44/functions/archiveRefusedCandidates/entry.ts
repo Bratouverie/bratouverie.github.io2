@@ -6,8 +6,9 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    if (user.role !== 'admin') {
-      return Response.json({ error: 'Only admins can archive candidates' }, { status: 403 });
+    // Allow admin and moderator roles
+    if (!user || (user.role !== 'admin' && user.role !== 'moderator')) {
+      return Response.json({ error: 'Insufficient permissions. Admin or moderator role required.' }, { status: 403 });
     }
 
     const body = await req.json();
