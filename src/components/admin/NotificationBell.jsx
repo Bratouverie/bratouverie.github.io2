@@ -10,9 +10,11 @@ export default function NotificationBell() {
 
   const load = useCallback(async () => {
     try {
-      // Модераторы и менеджеры видят уведомления только если agency_id совпадает или это общее уведомление
-      // Администраторы видят все уведомления
+      const user = await base44.auth.me();
       let query = { is_read: false };
+      if (user?.role !== 'admin' && user?.agency_id) {
+        query.agency_id = user.agency_id;
+      }
       const items = await base44.entities.Notification.filter(query, '-created_date', 50);
       setUnread(items.length);
     } catch (_) {}

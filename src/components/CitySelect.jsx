@@ -43,7 +43,7 @@ export default function CitySelect({
       }
       const seen = new Set();
       cities = cities.filter(c => {
-        const key = c.name.toLowerCase();
+        const key = (c.name + (c.region || '')).toLowerCase();
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
