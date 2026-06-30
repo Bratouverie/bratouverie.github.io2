@@ -40,14 +40,16 @@ export default function NotificationBell() {
     <Link
       to="/admin/notifications"
       title="Уведомления"
-      className="relative flex items-center justify-center w-9 h-9 rounded-lg border border-[rgba(123,63,191,0.2)] text-[#F8FAFC]/50 hover:text-[#7B3FBF] hover:border-[#7B3FBF]/40 transition-all"
+      className="fixed bottom-4 left-4 z-50 flex items-center justify-center w-10 h-10 rounded-lg border border-[rgba(123,63,191,0.2)] text-[#F8FAFC]/50 hover:text-[#7B3FBF] hover:border-[#7B3FBF]/40 transition-all bg-[#05070A]"
     >
-      <Bell size={15} />
-      {unread > 0 && (
-        <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-[#C9A84C] text-[#05070A] text-[10px] font-black">
-          {unread > 99 ? '99+' : unread}
-        </span>
-      )}
+      <div className="relative flex items-center justify-center w-full h-full">
+        <Bell size={15} />
+        {unread > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-[#C9A84C] text-[#05070A] text-[10px] font-black">
+            {unread > 99 ? '99+' : unread}
+          </span>
+        )}
+      </div>
     </Link>
   );
 }
