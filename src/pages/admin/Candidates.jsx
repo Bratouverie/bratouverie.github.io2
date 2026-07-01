@@ -68,6 +68,7 @@ export default function Candidates() {
     const activeAg = ag.filter(a => !a.deleted_at);
     const activeAgIds = new Set(activeAg.map(a => a.id));
     const filtered = cand
+      .filter(c => !c.deleted_at)
       .filter(c => !c.agency_id || activeAgIds.has(c.agency_id))
       .map(c => {
         const formDocs = formDocsByCandidate[c.id];
@@ -95,10 +96,10 @@ export default function Candidates() {
     // Периодическая проверка дублей каждые 2 минуты
     const interval = setInterval(async () => {
       const cand = await base44.entities.Candidate.list('-created_date', 500);
-      setDuplicateIds(findDuplicateIds(cand));
+      const activeCand = cand.filter(c => !c.deleted_at);
+      setDuplicateIds(findDuplicateIds(activeCand));
       setCandidates(prev => {
-        // Обновляем только если появились/исчезли записи
-        if (prev.length !== cand.length) return cand;
+        if (prev.length !== activeCand.length) return activeCand;
         return prev;
       });
     }, 120000);
@@ -132,10 +133,11 @@ export default function Candidates() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Удалить кандидата?')) return;
+    if (!confirm('Переместить кандидата в корзину? Запись можно будет восстановить.')) return;
     const cand = candidates.find(c => c.id === id);
-    await base44.entities.Candidate.delete(id);
-    await logCandidateAction({ action: 'delete', candidate: { ...cand }, actor: getActor() });
+    const ts = new Date().toISOString();
+    await base44.entities.Candidate.update(id, { deleted_at: ts });
+    await logCandidateAction({ action: 'delete', candidate: { ...cand, deleted_at: ts }, actor: getActor() });
     if (cand?.agency_id) {
       const remaining = candidates.filter(c => c.id !== id && c.agency_id === cand.agency_id);
       await base44.entities.Agency.update(cand.agency_id, { candidates_count: remaining.length });
@@ -302,6 +304,10 @@ export default function Candidates() {
             <Link to="/admin/candidate-logs"
               className="flex items-center gap-2 px-4 py-2 text-xs rounded border border-[rgba(123,63,191,0.25)] text-[#F8FAFC]/50 hover:text-[#7B3FBF] hover:border-[#7B3FBF]/40 transition-all">
               <ClipboardList size={13}/> Журнал
+            </Link>
+            <Link to="/admin/trash"
+              className="flex items-center gap-2 px-4 py-2 text-xs rounded border border-[rgba(255,255,255,0.1)] text-[#F8FAFC]/40 hover:text-red-400 hover:border-red-500/30 transition-all">
+              <Trash2 size={13}/> Корзина
             </Link>
 
             <button onClick={load} title="Обновить данные"

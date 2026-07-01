@@ -56,8 +56,9 @@ function LogisticsFlow({ onBack, onComplete }) {
     const loadCandidates = async () => {
       try {
         const cands = await base44.entities.Candidate.filter({ assembly_point: '' }, '-created_date', 50);
-        setCandidates(cands);
-        if (cands.length === 0) setError('Нет кандидатов без пункта сбора');
+        const activeCands = cands.filter(c => !c.deleted_at);
+        setCandidates(activeCands);
+        if (activeCands.length === 0) setError('Нет кандидатов без пункта сбора');
       } catch (e) {
         setError(e.message);
       }

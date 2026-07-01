@@ -28,6 +28,7 @@ import CandidateLogs from './pages/admin/CandidateLogs';
 import Assistant from './pages/admin/Assistant';
 import Tickets from './pages/admin/Tickets';
 import AssemblyPoints from './pages/admin/AssemblyPoints';
+import Trash from './pages/admin/Trash';
 import Users from './pages/admin/Users';
 import Notifications from './pages/admin/Notifications';
 import AgencyNotifications from './pages/AgencyNotifications';
@@ -68,6 +69,7 @@ function App() {
               <Route path="/admin/tickets" element={<Tickets />} />
               <Route path="/admin/assembly-points" element={<AssemblyPoints />} />
               <Route path="/admin/notifications" element={<Notifications />} />
+              <Route path="/admin/trash" element={<Trash />} />
             </Route>
 
             {/* Admin-only routes */}

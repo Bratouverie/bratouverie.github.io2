@@ -7,7 +7,7 @@ Deno.serve(async (req) => {
     if (!user || !user.id) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json();
-    const { period = 'month', groupBy = 'agency' } = body;
+    const { period = 'month', groupBy = 'agency', include_deleted = false } = body;
 
     const candidates = await base44.entities.Candidate.list('-created_date', 1000);
     const agencies = await base44.entities.Agency.list('-created_date', 500);
@@ -19,7 +19,10 @@ Deno.serve(async (req) => {
     else if (period === 'month') startDate.setMonth(now.getMonth() - 1);
     else if (period === 'quarter') startDate.setMonth(now.getMonth() - 3);
 
+    const deletedCount = candidates.filter(c => c.deleted_at).length;
+
     const filteredCandidates = candidates.filter(c => {
+      if (!include_deleted && c.deleted_at) return false;
       if (!c.created_date) return true;
       const createdDate = new Date(c.created_date);
       return createdDate >= startDate;
@@ -56,7 +59,9 @@ Deno.serve(async (req) => {
       status: 'success',
       period,
       groupBy,
+      include_deleted,
       total_candidates: filteredCandidates.length,
+      deleted_count: deletedCount,
       analytics
     });
   } catch (error) {

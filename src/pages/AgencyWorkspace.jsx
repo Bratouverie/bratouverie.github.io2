@@ -68,7 +68,8 @@ export default function AgencyWorkspace() {
         formDocsByCandidate[f.candidate_id] = f.uploaded_docs;
       }
     });
-    const mergedCands = cands.map(c => {
+    const activeCands = cands.filter(c => !c.deleted_at);
+    const mergedCands = activeCands.map(c => {
       const formDocs = formDocsByCandidate[c.id];
       if (formDocs?.length) {
         const existingUrls = new Set((c.documents || []).map(d => d.url).filter(Boolean));
@@ -120,10 +121,11 @@ export default function AgencyWorkspace() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Удалить кандидата?')) return;
+    if (!confirm('Переместить кандидата в корзину? Запись можно будет восстановить.')) return;
     const cand = candidates.find(c => c.id === id);
-    await base44.entities.Candidate.delete(id);
-    await logCandidateAction({ action: 'delete', candidate: { ...cand }, actor: getActor() });
+    const ts = new Date().toISOString();
+    await base44.entities.Candidate.update(id, { deleted_at: ts });
+    await logCandidateAction({ action: 'delete', candidate: { ...cand, deleted_at: ts }, actor: getActor() });
     setCandidates(prev => prev.filter(c => c.id !== id));
   };
 

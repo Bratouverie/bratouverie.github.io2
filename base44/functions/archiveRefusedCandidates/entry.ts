@@ -30,12 +30,15 @@ Deno.serve(async (req) => {
 
     const candidates = await base44.entities.Candidate.filter(query, '-created_date', 1000);
 
+    // Exclude soft-deleted candidates from archiving
+    const activeCandidates = candidates.filter(c => !c.deleted_at);
+
     if (dry_run) {
       return Response.json({
         status: 'dry_run',
         criteria,
-        total_would_archive: candidates.length,
-        candidates: candidates.map(c => ({
+        total_would_archive: activeCandidates.length,
+        candidates: activeCandidates.map(c => ({
           id: c.id,
           full_name: c.full_name,
           position: c.position,
@@ -44,18 +47,30 @@ Deno.serve(async (req) => {
           medical_check: c.medical_check,
           payment_basis: c.payment_basis
         })),
-        message: `Найдено ${candidates.length} кандидатов для архивации по критерию "${criteria}"`
+        message: `Найдено ${activeCandidates.length} кандидатов для архивации по критерию "${criteria}"`
       });
     }
 
-    // Perform actual archiving
-    const archived = await base44.entities.Candidate.updateMany(query, { $set: { is_archived: true } });
+    // Perform actual archiving using bulkUpdate with specific IDs (excludes soft-deleted)
+    const ids = activeCandidates.map(c => c.id);
+    if (ids.length === 0) {
+      return Response.json({
+        status: 'success',
+        criteria,
+        archived_count: 0,
+        message: `Нет кандидатов для архивации по критерию "${criteria}"`
+      });
+    }
+
+    const archived = await base44.entities.Candidate.bulkUpdate(
+      ids.map(id => ({ id, is_archived: true }))
+    );
 
     return Response.json({
       status: 'success',
       criteria,
-      archived_count: archived.modified_count || candidates.length,
-      message: `Архивировано ${archived.modified_count || candidates.length} кандидатов`
+      archived_count: ids.length,
+      message: `Архивировано ${ids.length} кандидатов`
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });

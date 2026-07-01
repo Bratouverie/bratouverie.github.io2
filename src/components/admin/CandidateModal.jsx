@@ -90,7 +90,7 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
     setChecking(true);
     const found = await base44.entities.Candidate.filter({ full_name, birth_date });
     // Исключаем текущего редактируемого кандидата
-    const others = found.filter(c => c.id !== candidate?.id);
+    const others = found.filter(c => c.id !== candidate?.id && !c.deleted_at);
     if (others.length > 0) {
       setStopList({ full_name: others[0].full_name, agency_name: others[0].agency_name });
     } else {

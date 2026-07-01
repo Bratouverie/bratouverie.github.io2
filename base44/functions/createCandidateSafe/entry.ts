@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
     );
 
     const duplicates = sameBirthDate.filter(
-      (c) => !c.is_archived && namesMatch(c.full_name, candidate_data.full_name)
+      (c) => !c.is_archived && !c.deleted_at && namesMatch(c.full_name, candidate_data.full_name)
     );
 
     if (duplicates.length > 0) {
