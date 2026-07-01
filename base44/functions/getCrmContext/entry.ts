@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
       base44.asServiceRole.entities.AgentTicket.filter({ status: 'open' }, '-created_date', 50),
     ]);
 
-    const active = candidates.filter(c => !c.is_archived);
+    const active = candidates.filter(c => !c.is_archived && !c.deleted_at);
     const cityNames = new Set(cities.map(c => c.name.toLowerCase()));
 
     // Кандидаты без пункта сбора
