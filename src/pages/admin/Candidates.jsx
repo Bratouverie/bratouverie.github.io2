@@ -112,24 +112,41 @@ export default function Candidates() {
   });
 
   const handleSave = async (data, id) => {
-    if (id) {
-      const old = candidates.find(c => c.id === id);
-      await base44.entities.Candidate.update(id, data);
-      await logCandidateAction({ action: 'update', candidate: { ...data, id }, oldData: old, actor: getActor() });
-    } else {
-      const response = await base44.functions.invoke('createCandidateSafe', {
-        candidate_data: data,
-        actor: getActor(),
-      });
-      if (response.data?.error === 'duplicate') {
-        const ex = response.data.existing_candidate;
-        alert(`Дубль: кандидат «${ex.full_name}» с датой рождения ${ex.birth_date} уже существует${ex.agency_name ? ` (агентство: ${ex.agency_name})` : ''}.\nСоздание заблокировано.`);
-        return;
+    try {
+      if (id) {
+        const old = candidates.find(c => c.id === id);
+        await base44.entities.Candidate.update(id, data);
+        await logCandidateAction({ action: 'update', candidate: { ...data, id }, oldData: old, actor: getActor() });
+        setCandidates(prev => prev.map(x => x.id === id ? { ...x, ...data } : x));
+      } else {
+        const response = await base44.functions.invoke('createCandidateSafe', {
+          candidate_data: data,
+          actor: getActor(),
+        });
+        if (response.data?.error === 'duplicate') {
+          const ex = response.data.existing_candidate;
+          alert(`Дубль: кандидат «${ex.full_name}» с датой рождения ${ex.birth_date} уже существует${ex.agency_name ? ` (агентство: ${ex.agency_name})` : ''}.\nСоздание заблокировано.`);
+          return false;
+        }
+        const newCandidate = response.data?.candidate;
+        if (newCandidate) {
+          setCandidates(prev => [newCandidate, ...prev]);
+        }
       }
+      setModalOpen(false);
+      setEditCandidate(null);
+      return true;
+    } catch (err) {
+      console.error('handleSave error:', err);
+      const errData = err?.response?.data;
+      if (errData?.error === 'duplicate') {
+        const ex = errData.existing_candidate;
+        alert(`Дубль: кандидат «${ex.full_name}» с датой рождения ${ex.birth_date} уже существует${ex.agency_name ? ` (агентство: ${ex.agency_name})` : ''}.\nСоздание заблокировано.`);
+      } else {
+        alert('Ошибка при сохранении: ' + (err.message || 'неизвестная ошибка. Проверьте подключение.'));
+      }
+      return false;
     }
-    setModalOpen(false);
-    setEditCandidate(null);
-    load();
   };
 
   const handleDelete = async (id) => {

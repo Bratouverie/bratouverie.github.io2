@@ -164,13 +164,14 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
     }
     setSaving(true);
     try {
-      // Сохраняем документы в анкету (единый источник истины)
       if (candidateFormId) {
         await base44.entities.CandidateForm.update(candidateFormId, { uploaded_docs: formDocs });
       }
-      // Сохраняем карточку кандидата (без поля documents — оно формируется из анкеты)
       const { documents, ...candidateData } = form;
       await onSave(candidateData, candidate?.id);
+    } catch (err) {
+      console.error('Save error:', err);
+      alert('Ошибка сохранения: ' + (err.message || 'неизвестная ошибка'));
     } finally {
       setSaving(false);
     }
