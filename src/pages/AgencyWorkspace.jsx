@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Plus, Edit2, Trash2, LogOut, Building2, Users, Search, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, X, Download, Archive, ArchiveRestore, BookOpen, AlertTriangle } from 'lucide-react';
+import { Plus, Edit2, Trash2, LogOut, Building2, Users, Search, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, X, Download, Archive, ArchiveRestore, BookOpen, AlertTriangle, FileText, Send } from 'lucide-react';
 import CandidateModal from '../components/admin/CandidateModal';
+import CandidateFormModal from '../components/admin/CandidateFormModal';
 import AgencyNotificationBell from '../components/admin/AgencyNotificationBell';
 import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card';
 import { notifyStatusChange } from '@/lib/notifyStatusChange';
@@ -39,6 +40,7 @@ export default function AgencyWorkspace() {
   const [editCandidate, setEditCandidate] = useState(null);
   const [showArchive, setShowArchive] = useState(false);
   const [cityCache, setCityCache] = useState({});
+  const [formModalCandidate, setFormModalCandidate] = useState(null);
 
   useEffect(() => {
     if (!session?.id) { navigate('/agency-login', { replace: true }); return; }
@@ -76,7 +78,8 @@ export default function AgencyWorkspace() {
         await notifyStatusChange({ ...dataWithAgency, id }, old);
         setCandidates(prev => prev.map(x => x.id === id ? { ...x, ...dataWithAgency } : x));
       } else {
-        const newCandidate = await base44.entities.Candidate.create(dataWithAgency);
+        const formToken = crypto.randomUUID();
+        const newCandidate = await base44.entities.Candidate.create({ ...dataWithAgency, form_token: formToken, form_status: 'not_sent' });
         setCandidates(prev => [newCandidate, ...prev]);
       }
       setModalOpen(false);
@@ -97,6 +100,28 @@ export default function AgencyWorkspace() {
     } catch (err) {
       console.error('Delete error:', err);
       alert('Ошибка удаления: ' + err.message);
+    }
+  };
+
+  const handleSendFormLink = async (c) => {
+    if (!c.form_token) { alert('У кандидата нет токена анкеты'); return; }
+    const url = `${window.location.origin}/form/${c.form_token}`;
+    try {
+      if (c.email) {
+        await base44.integrations.Core.SendEmail({
+          to: c.email,
+          subject: 'Ссылка на заполнение анкеты',
+          body: `Здравствуйте, ${c.full_name}!\n\nПросим вас заполнить анкету по ссылке:\n${url}\n\nООО «Братоуверие-СНБ»`,
+          from_name: 'Bratouveriye SNB',
+        });
+        await base44.entities.Candidate.update(c.id, { form_status: 'pending' });
+        setCandidates(prev => prev.map(x => x.id === c.id ? { ...x, form_status: 'pending' } : x));
+        alert(`Ссылка отправлена на ${c.email}`);
+      } else {
+        navigator.clipboard.writeText(url).then(() => alert('Ссылка скопирована:\n' + url));
+      }
+    } catch (err) {
+      alert('Ошибка отправки: ' + err.message);
     }
   };
 
@@ -289,6 +314,7 @@ export default function AgencyWorkspace() {
                     <th className="px-4 py-3"><Tooltip text="Дата прибытия"><CalendarDays size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
                     <th className="px-4 py-3"><Tooltip text="Основание для выплаты"><Banknote size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
                     <th className="px-4 py-3"><Tooltip text="Выплачено"><CheckCircle size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
+                    <th className="px-4 py-3"><Tooltip text="Статус анкеты"><FileText size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
                     <th className="px-4 py-3"><Tooltip text="Комментарий"><MessageSquare size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider">Действия</th>
                   </tr>
@@ -343,6 +369,11 @@ export default function AgencyWorkspace() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
+                        <span className={`text-xs font-medium ${c.form_status === 'completed' ? 'text-green-400' : c.form_status === 'pending' ? 'text-yellow-400' : 'text-[#F8FAFC]/30'}`}>
+                          {c.form_status === 'completed' ? '✓ Заполнена' : c.form_status === 'pending' ? '⏳ Отправлена' : '—'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
                         {c.comment ? (
                           <Tooltip text={c.comment}>
                             <MessageSquare size={14} className="text-[#7B3FBF] cursor-help" />
@@ -362,6 +393,14 @@ export default function AgencyWorkspace() {
                                 className="p-1.5 rounded hover:bg-[#7B3FBF]/20 text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-all">
                                 <Edit2 size={14} />
                               </button>
+                              <button onClick={() => setFormModalCandidate(c)} title="Анкета"
+                                className="p-1.5 rounded hover:bg-[#7B3FBF]/20 text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-all">
+                                <FileText size={14} />
+                              </button>
+                              <button onClick={() => handleSendFormLink(c)} title="Отправить ссылку на анкету"
+                                className="p-1.5 rounded hover:bg-[#7B3FBF]/20 text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-all">
+                                <Send size={14} />
+                              </button>
                               {isArchivable(c) && (
                                 <button onClick={() => handleArchive(c)} title="В архив"
                                   className="p-1.5 rounded hover:bg-[#C9A84C]/20 text-[#F8FAFC]/50 hover:text-[#C9A84C] transition-all">
@@ -380,7 +419,7 @@ export default function AgencyWorkspace() {
                   ))}
                   {displayed.length === 0 && (
                     <tr>
-                      <td colSpan={10} className="text-center py-16 text-[#F8FAFC]/30">
+                      <td colSpan={11} className="text-center py-16 text-[#F8FAFC]/30">
                         <div className="flex flex-col items-center gap-3">
                           <Users size={32} className="text-[#F8FAFC]/15" />
                           <p>{showArchive ? 'Архив пуст' : candidates.length > 0 ? 'Нет кандидатов по фильтрам' : 'Кандидатов пока нет. Добавьте первого!'}</p>
@@ -402,6 +441,13 @@ export default function AgencyWorkspace() {
           lockedAgencyId={session.id}
           onSave={handleSave}
           onClose={() => { setModalOpen(false); setEditCandidate(null); }}
+        />
+      )}
+
+      {formModalCandidate && (
+        <CandidateFormModal
+          candidate={formModalCandidate}
+          onClose={() => setFormModalCandidate(null)}
         />
       )}
     </div>

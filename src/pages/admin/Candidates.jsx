@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Download, Search, Trash2, Edit2, X, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, Archive, ArchiveRestore, ClipboardList } from 'lucide-react';
+import { Plus, Download, Search, Trash2, Edit2, X, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, Archive, ArchiveRestore, ClipboardList, FileText, Send } from 'lucide-react';
 import CandidateModal from '../../components/admin/CandidateModal';
+import CandidateFormModal from '../../components/admin/CandidateFormModal';
 import InlineCommentCell from '@/components/admin/InlineCommentCell';
 
 const POSITIONS = ['Разнорабочий','Строитель','Водитель B','Водитель C','Водитель CE','Водитель D','Автослесарь','Инженер связи','Оператор БПЛА','Взрывотехник','Медицинский работник','Охранник'];
@@ -34,6 +35,7 @@ export default function Candidates() {
   const [filters, setFilters] = useState({ agency: '', position: '', sb_check: '', medical_check: '' });
   const [showArchive, setShowArchive] = useState(false);
   const [cityCache, setCityCache] = useState({});
+  const [formModalCandidate, setFormModalCandidate] = useState(null);
   const [searchParams] = useSearchParams();
 
   const load = useCallback(async () => {
@@ -68,7 +70,8 @@ export default function Candidates() {
         await base44.entities.Candidate.update(id, data);
         setCandidates(prev => prev.map(x => x.id === id ? { ...x, ...data } : x));
       } else {
-        const newCandidate = await base44.entities.Candidate.create(data);
+        const formToken = crypto.randomUUID();
+        const newCandidate = await base44.entities.Candidate.create({ ...data, form_token: formToken, form_status: 'not_sent' });
         setCandidates(prev => [newCandidate, ...prev]);
       }
       setModalOpen(false);
@@ -77,6 +80,27 @@ export default function Candidates() {
       console.error('❌ Ошибка сохранения:', err);
       const msg = err?.response?.data?.message || err?.message || 'Неизвестная ошибка';
       alert(`Ошибка: ${msg}`);
+    }
+  };
+
+  const handleSendFormLink = async (c) => {
+    if (!c.form_token) { alert('У кандидата нет токена анкеты'); return; }
+    if (!c.email && !c.phone) { alert('У кандидата нет email для отправки ссылки'); return; }
+    const url = `${window.location.origin}/form/${c.form_token}`;
+    try {
+      if (c.email) {
+        await base44.integrations.Core.SendEmail({
+          to: c.email,
+          subject: 'Ссылка на заполнение анкеты',
+          body: `Здравствуйте, ${c.full_name}!\n\nПросим вас заполнить анкету по ссылке:\n${url}\n\nООО «Братоуверие-СНБ»`,
+          from_name: 'Bratouveriye SNB',
+        });
+      }
+      await base44.entities.Candidate.update(c.id, { form_status: 'pending' });
+      setCandidates(prev => prev.map(x => x.id === c.id ? { ...x, form_status: 'pending' } : x));
+      alert(c.email ? `Ссылка отправлена на ${c.email}` : `Ссылка: ${url}`);
+    } catch (err) {
+      alert('Ошибка отправки: ' + err.message);
     }
   };
 
@@ -280,6 +304,7 @@ export default function Candidates() {
                     <th className="px-4 py-3"><Tooltip text="Дата прибытия"><CalendarDays size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
                     <th className="px-4 py-3"><Tooltip text="Основание для выплаты"><Banknote size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
                     <th className="px-4 py-3"><Tooltip text="Выплачено"><CheckCircle size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
+                    <th className="px-4 py-3"><Tooltip text="Статус анкеты"><FileText size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider whitespace-nowrap">Добавлен</th>
                     <th className="px-4 py-3"><Tooltip text="Комментарий"><MessageSquare size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider">Действия</th>
@@ -337,6 +362,11 @@ export default function Candidates() {
                           {c.payment_made === 'Да' ? '✓ Да' : 'Нет'}
                         </span>
                       </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-medium ${c.form_status === 'completed' ? 'text-green-400' : c.form_status === 'pending' ? 'text-yellow-400' : 'text-[#F8FAFC]/30'}`}>
+                          {c.form_status === 'completed' ? '✓ Заполнена' : c.form_status === 'pending' ? '⏳ Отправлена' : '—'}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-xs text-[#F8FAFC]/40 whitespace-nowrap">
                         {c.created_date
                           ? new Date(c.created_date).toLocaleDateString('ru-RU') + ' ' + new Date(c.created_date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
@@ -358,6 +388,14 @@ export default function Candidates() {
                                 className="p-1.5 rounded hover:bg-[#7B3FBF]/20 text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-all">
                                 <Edit2 size={14}/>
                               </button>
+                              <button onClick={() => setFormModalCandidate(c)} title="Анкета"
+                                className="p-1.5 rounded hover:bg-[#7B3FBF]/20 text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-all">
+                                <FileText size={14}/>
+                              </button>
+                              <button onClick={() => handleSendFormLink(c)} title="Отправить ссылку на анкету"
+                                className="p-1.5 rounded hover:bg-[#7B3FBF]/20 text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-all">
+                                <Send size={14}/>
+                              </button>
                               {isArchivable(c) && (
                                 <button onClick={() => handleArchive(c)} title="Переместить в архив"
                                   className="p-1.5 rounded hover:bg-[#C9A84C]/20 text-[#F8FAFC]/50 hover:text-[#C9A84C] transition-all">
@@ -375,7 +413,7 @@ export default function Candidates() {
                     </tr>
                   ))}
                   {displayed.length === 0 && (
-                    <tr><td colSpan={11} className="text-center py-12 text-[#F8FAFC]/30">
+                    <tr><td colSpan={12} className="text-center py-12 text-[#F8FAFC]/30">
                       {showArchive ? 'Архив пуст' : 'Кандидаты не найдены'}
                     </td></tr>
                   )}
@@ -392,6 +430,13 @@ export default function Candidates() {
           agencies={agencies}
           onSave={handleSave}
           onClose={() => { setModalOpen(false); setEditCandidate(null); }}
+        />
+      )}
+
+      {formModalCandidate && (
+        <CandidateFormModal
+          candidate={formModalCandidate}
+          onClose={() => setFormModalCandidate(null)}
         />
       )}
     </div>
