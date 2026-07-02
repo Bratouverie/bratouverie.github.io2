@@ -7,7 +7,6 @@ export const base44 = createClient({
   appId,
   token,
   functionsVersion,
-  serverUrl: 'https://bro-crm.ru',
-  requiresAuth: false,
+  requiresAuth: true,
   appBaseUrl
 });

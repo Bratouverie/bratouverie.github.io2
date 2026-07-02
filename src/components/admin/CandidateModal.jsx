@@ -157,9 +157,16 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
   };
 
   const handleSaveClick = async () => {
-    if (stopList) return;
+    if (stopList) {
+      alert('Кандидат уже в базе (стоп-лист). Отредактируйте существующую запись.');
+      return;
+    }
+    if (!form.full_name?.trim()) {
+      alert('Заполните ФИО.');
+      return;
+    }
     if (form.city && !cityObject) {
-      alert('Пожалуйста, выберите населённый пункт из списка. Текстовый ввод не допускается — выберите ближайший из каталога.');
+      alert('Выберите населённый пункт из списка — текстовый ввод не допускается.');
       return;
     }
     setSaving(true);
@@ -170,8 +177,10 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
       const { documents, ...candidateData } = form;
       await onSave(candidateData, candidate?.id);
     } catch (err) {
-      console.error('Save error:', err);
-      alert('Ошибка сохранения: ' + (err.message || 'неизвестная ошибка'));
+      console.error('handleSaveClick error:', err);
+      if (!err?.response) {
+        alert('Ошибка сохранения: ' + (err.message || 'неизвестная ошибка'));
+      }
     } finally {
       setSaving(false);
     }
@@ -442,7 +451,6 @@ export default function CandidateModal({ candidate, agencies, lockedAgencyId, on
               onClick={handleSaveClick}
               disabled={!!stopList || saving}
               className="flex items-center gap-2 px-6 py-2.5 text-sm rounded-lg bg-[#7B3FBF] text-white hover:bg-[#8B4FCF] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-              {saving && <Loader2 size={14} className="animate-spin" />}
               {saving ? 'Сохранение...' : candidate ? 'Сохранить' : 'Создать'}
             </button>
           </div>
