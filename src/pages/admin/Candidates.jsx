@@ -1,10 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Download, Search, Trash2, Edit2, X, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, Archive, ArchiveRestore, ClipboardList } from 'lucide-react';
 import CandidateModal from '../../components/admin/CandidateModal';
 import InlineCommentCell from '@/components/admin/InlineCommentCell';
-import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card';
 
 const POSITIONS = ['Разнорабочий','Строитель','Водитель B','Водитель C','Водитель CE','Водитель D','Автослесарь','Инженер связи','Оператор БПЛА','Взрывотехник','Медицинский работник','Охранник'];
 const SB_COLORS  = { 'Не проверялся':'text-[#F8FAFC]/40', 'На проверке':'text-yellow-400', 'Согласован':'text-green-400', 'Не согласован':'text-red-400' };
@@ -119,10 +118,10 @@ export default function Candidates() {
     const a = document.createElement('a'); a.href = url; a.download = showArchive ? 'candidates_archive.csv' : 'candidates.csv'; a.click();
   };
 
-  const active   = candidates.filter(c => !c.is_archived);
-  const archived = candidates.filter(c => c.is_archived);
+  const active   = useMemo(() => candidates.filter(c => !c.is_archived), [candidates]);
+  const archived = useMemo(() => candidates.filter(c => c.is_archived), [candidates]);
 
-  const applyFilters = (list) => {
+  const applyFilters = useCallback((list) => {
     const q = search.toLowerCase();
     return list.filter(c => {
       const matchSearch = !q || c.full_name?.toLowerCase().includes(q) || c.position?.toLowerCase().includes(q) || c.city?.toLowerCase().includes(q) || c.phone?.includes(q);
@@ -132,28 +131,25 @@ export default function Candidates() {
       const matchMed    = !filters.medical_check || c.medical_check === filters.medical_check;
       return matchSearch && matchAgency && matchPos && matchSB && matchMed;
     });
-  };
+  }, [search, filters]);
 
-  const filteredActive   = applyFilters(active);
-  const filteredArchived = applyFilters(archived);
+  const filteredActive   = useMemo(() => applyFilters(active), [applyFilters, active]);
+  const filteredArchived = useMemo(() => applyFilters(archived), [applyFilters, archived]);
   const displayed = showArchive ? filteredArchived : filteredActive;
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
   const inp = "px-3 py-2 bg-[rgba(255,255,255,0.04)] border border-[rgba(123,63,191,0.2)] rounded-lg text-sm text-[#F8FAFC] focus:outline-none focus:border-[#7B3FBF]";
 
-  const readyCount = active.filter(c => c.payment_basis === 'Готовится к отправке').length;
-  const paidCount  = active.filter(c => c.payment_made === 'Да').length;
-  const sbCount = active.filter(c =>
-    c.sb_check === 'Согласован' &&
-    c.medical_check !== 'Прошёл' &&
-    c.payment_basis !== 'Готовится к отправке' &&
-    c.payment_made !== 'Да'
-  ).length;
-  const medCount = active.filter(c =>
-    c.medical_check === 'Прошёл' &&
-    c.payment_basis !== 'Готовится к отправке' &&
-    c.payment_made !== 'Да'
-  ).length;
+  const stats = useMemo(() => {
+    let readyCount = 0, paidCount = 0, sbCount = 0, medCount = 0;
+    for (const c of active) {
+      if (c.payment_basis === 'Готовится к отправке') readyCount++;
+      if (c.payment_made === 'Да') paidCount++;
+      if (c.sb_check === 'Согласован' && c.medical_check !== 'Прошёл' && c.payment_basis !== 'Готовится к отправке' && c.payment_made !== 'Да') sbCount++;
+      if (c.medical_check === 'Прошёл' && c.payment_basis !== 'Готовится к отправке' && c.payment_made !== 'Да') medCount++;
+    }
+    return { readyCount, paidCount, sbCount, medCount };
+  }, [active]);
 
   return (
     <div className="min-h-screen bg-[#05070A] text-[#F8FAFC]">
@@ -211,10 +207,10 @@ export default function Candidates() {
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
             {[
               { label: 'Всего активных', value: active.length },
-              { label: 'Согласованы СБ', value: sbCount },
-              { label: 'Прошли медкомиссию', value: medCount },
-              { label: 'К отправке', value: readyCount },
-              { label: 'Выплачено (чел.)', value: paidCount, sub: `${(paidCount * 100000).toLocaleString('ru-RU')} ₽` },
+              { label: 'Согласованы СБ', value: stats.sbCount },
+              { label: 'Прошли медкомиссию', value: stats.medCount },
+              { label: 'К отправке', value: stats.readyCount },
+              { label: 'Выплачено (чел.)', value: stats.paidCount, sub: `${(stats.paidCount * 100000).toLocaleString('ru-RU')} ₽` },
             ].map(s => (
               <div key={s.label} className="glass-card rounded-xl p-4">
                 <div className="text-2xl font-black text-[#7B3FBF]">{s.value}</div>
@@ -301,24 +297,20 @@ export default function Candidates() {
                       <td className="px-4 py-3 text-[#F8FAFC]/60 text-xs whitespace-nowrap">{c.position || '—'}</td>
                       <td className="px-4 py-3 text-xs text-[#F8FAFC]/55">
                         {c.city ? (
-                          <HoverCard>
-                            <HoverCardTrigger asChild>
-                              <span className="cursor-help underline decoration-dotted underline-offset-2 hover:text-[#7B3FBF] transition-colors">{c.city}</span>
-                            </HoverCardTrigger>
-                            <HoverCardContent side="top" sideOffset={4} className="w-72 bg-[#0D1B3E] border-[rgba(123,63,191,0.3)] text-[#F8FAFC]">
-                              <div className="space-y-2 text-xs">
-                                <div className="font-bold text-[#F8FAFC]">{c.city}</div>
-                                {cityCache[c.city.toLowerCase()]?.region && <div className="text-[#F8FAFC]/60">Регион: {cityCache[c.city.toLowerCase()].region}</div>}
-                                {c.assembly_point && (
-                                  <div className="pt-2 border-t border-[rgba(123,63,191,0.15)]">
-                                    <div className="text-[#F8FAFC]/50">Пункт сбора:</div>
-                                    <div className="text-[#7B3FBF] font-bold">{c.assembly_point}</div>
-                                    {c.assembly_distance && <div className="text-[#C9A84C] mt-1">Расстояние: {c.assembly_distance} км</div>}
-                                  </div>
-                                )}
-                              </div>
-                            </HoverCardContent>
-                          </HoverCard>
+                          <div className="group/city relative inline-block">
+                            <span className="cursor-help underline decoration-dotted underline-offset-2 hover:text-[#7B3FBF] transition-colors">{c.city}</span>
+                            <div className="absolute bottom-full left-0 mb-2 hidden group-hover/city:block w-72 bg-[#0D1B3E] border border-[rgba(123,63,191,0.3)] rounded-lg p-3 text-xs text-[#F8FAFC] shadow-xl z-50">
+                              <div className="font-bold text-[#F8FAFC]">{c.city}</div>
+                              {cityCache[c.city.toLowerCase()]?.region && <div className="text-[#F8FAFC]/60 mt-1">Регион: {cityCache[c.city.toLowerCase()].region}</div>}
+                              {c.assembly_point && (
+                                <div className="pt-2 mt-2 border-t border-[rgba(123,63,191,0.15)]">
+                                  <div className="text-[#F8FAFC]/50">Пункт сбора:</div>
+                                  <div className="text-[#7B3FBF] font-bold">{c.assembly_point}</div>
+                                  {c.assembly_distance && <div className="text-[#C9A84C] mt-1">Расстояние: {c.assembly_distance} км</div>}
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         ) : '—'}
                         {c.assembly_point && <div className="text-[#F8FAFC]/30 mt-0.5">{c.assembly_point}</div>}
                       </td>
