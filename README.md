@@ -11,7 +11,7 @@ This project contains everything you need to run your app locally.
 Any change pushed to the repo will also be reflected in the Base44 Builder.
 
 **Prerequisites:** 
-
+ 
 1. Clone the repository using the project's Git URL 
 2. Navigate to the project directory
 3. Install dependencies: `npm install`
