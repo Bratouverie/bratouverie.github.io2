@@ -1,20 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
-import { Plus, Edit2, Trash2, LogOut, Building2, Users, Search, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, X, ClipboardCopy, Download, Archive, ArchiveRestore, BookOpen, AlertTriangle } from 'lucide-react';
+import { Plus, Edit2, Trash2, LogOut, Building2, Users, Search, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, X, Download, Archive, ArchiveRestore, BookOpen, AlertTriangle } from 'lucide-react';
 import CandidateModal from '../components/admin/CandidateModal';
 import AgencyNotificationBell from '../components/admin/AgencyNotificationBell';
 import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card';
-import { logCandidateAction } from '@/lib/candidateLogger';
 import { notifyStatusChange } from '@/lib/notifyStatusChange';
-import { hasMissingRequiredDocs, getMissingRequiredDocs } from '@/lib/docUtils';
 
 const POSITIONS = ['Разнорабочий','Строитель','Водитель B','Водитель C','Водитель CE','Водитель D','Автослесарь','Инженер связи','Оператор БПЛА','Взрывотехник','Медицинский работник','Охранник'];
 const SB_COLORS  = { 'Не проверялся': 'text-[#F8FAFC]/40', 'На проверке': 'text-yellow-400', 'Согласован': 'text-green-400', 'Не согласован': 'text-red-400' };
 const MED_COLORS = { 'Не проверялся': 'text-[#F8FAFC]/40', 'Прошёл': 'text-green-400', 'Не прошёл': 'text-red-400' };
 const PAY_COLORS = { 'Готовится к отправке': 'text-green-400', 'Отказался от отправки': 'text-red-400/70' };
 
-// Тултип — показывает текст НИЖЕ иконки (под хедером)
 function Tooltip({ text, children }) {
   return (
     <div className="relative group/tip inline-flex items-center">
@@ -37,10 +34,9 @@ export default function AgencyWorkspace() {
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [search, setSearch]       = useState('');
-  const [filters, setFilters] = useState({ position: '', sb_check: '', medical_check: '', incomplete_docs: false });
+  const [filters, setFilters] = useState({ position: '', sb_check: '', medical_check: '' });
   const [modalOpen, setModalOpen] = useState(false);
   const [editCandidate, setEditCandidate] = useState(null);
-  const [copiedId, setCopiedId] = useState(null);
   const [showArchive, setShowArchive] = useState(false);
   const [cityCache, setCityCache] = useState({});
 
@@ -56,32 +52,12 @@ export default function AgencyWorkspace() {
       base44.entities.Agency.filter({ id: session.id }),
       base44.entities.Candidate.filter({ agency_id: session.id }, '-created_date', 500),
     ]);
-    // Загружаем пункты сбора, справочник городов и анкеты
-    const [cities, forms] = await Promise.all([
-      base44.entities.City.list('-created_date', 500),
-      base44.entities.CandidateForm.filter({ status: 'completed' }, '-created_date', 500),
-    ]);
-    // Мёрджим документы из завершённых анкет в карточки кандидатов
-    const formDocsByCandidate = {};
-    forms.forEach(f => {
-      if (f.candidate_id && f.uploaded_docs?.length) {
-        formDocsByCandidate[f.candidate_id] = f.uploaded_docs;
-      }
-    });
-    const activeCands = cands.filter(c => !c.deleted_at);
-    const mergedCands = activeCands.map(c => {
-      const formDocs = formDocsByCandidate[c.id];
-      if (formDocs?.length) {
-        const existingUrls = new Set((c.documents || []).map(d => d.url).filter(Boolean));
-        const newDocs = formDocs.filter(fd => !existingUrls.has(fd.url));
-        return { ...c, documents: [...(c.documents || []), ...newDocs] };
-      }
-      return c;
-    });
+    const cities = await base44.entities.City.list('-created_date', 500);
     const cityMap = {};
     cities.forEach(c => { if (c.name) cityMap[c.name.toLowerCase()] = c; });
+    const activeCands = cands.filter(c => !c.deleted_at);
     setAgency(agencyList[0] || null);
-    setCandidates(mergedCands);
+    setCandidates(activeCands);
     setCityCache(cityMap);
     setLoading(false);
   };
@@ -91,78 +67,47 @@ export default function AgencyWorkspace() {
     navigate('/agency-login', { replace: true });
   };
 
-  const getActor = () => ({
-    name: session.name,
-    role: 'agency',
-    agency_name: session.name,
-  });
-
   const handleSave = async (data, id) => {
     const dataWithAgency = { ...data, agency_id: session.id, agency_name: session.name };
     try {
       if (id) {
         const old = candidates.find(c => c.id === id);
         await base44.entities.Candidate.update(id, dataWithAgency);
-        await logCandidateAction({ action: 'update', candidate: { ...dataWithAgency, id }, oldData: old, actor: getActor() });
         await notifyStatusChange({ ...dataWithAgency, id }, old);
         setCandidates(prev => prev.map(x => x.id === id ? { ...x, ...dataWithAgency } : x));
       } else {
-        const response = await base44.functions.invoke('createCandidateSafe', {
-          candidate_data: dataWithAgency,
-          actor: getActor(),
-        });
-        if (response.data?.error === 'duplicate') {
-          const ex = response.data.existing_candidate;
-          alert(`Дубль: кандидат «${ex.full_name}» с датой рождения ${ex.birth_date} уже существует${ex.agency_name ? ` (агентство: ${ex.agency_name})` : ''}.\nСоздание заблокировано.`);
-          return false;
-        }
-        const newCandidate = response.data?.candidate;
-        if (newCandidate) {
-          setCandidates(prev => [newCandidate, ...prev]);
-        }
+        const newCandidate = await base44.entities.Candidate.create(dataWithAgency);
+        setCandidates(prev => [newCandidate, ...prev]);
       }
       setModalOpen(false);
       setEditCandidate(null);
-      return true;
     } catch (err) {
-      console.error('handleSave error:', err);
-      const errData = err?.response?.data;
-      if (errData?.error === 'duplicate') {
-        const ex = errData.existing_candidate;
-        alert(`Дубль: кандидат «${ex.full_name}» с датой рождения ${ex.birth_date} уже существует${ex.agency_name ? ` (агентство: ${ex.agency_name})` : ''}.\nСоздание заблокировано.`);
-      } else {
-        alert('Ошибка при сохранении: ' + (err.message || 'неизвестная ошибка. Проверьте подключение.'));
-      }
-      return false;
+      console.error('❌ Ошибка сохранения:', err);
+      const msg = err?.response?.data?.message || err?.message || 'Неизвестная ошибка';
+      alert(`Ошибка: ${msg}`);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Переместить кандидата в корзину? Запись можно будет восстановить.')) return;
-    const cand = candidates.find(c => c.id === id);
-    const ts = new Date().toISOString();
-    await base44.entities.Candidate.update(id, { deleted_at: ts });
-    await logCandidateAction({ action: 'delete', candidate: { ...cand, deleted_at: ts }, actor: getActor() });
-    setCandidates(prev => prev.filter(c => c.id !== id));
+    if (!window.confirm('Удалить кандидата? Запись будет перемещена в корзину.')) return;
+    try {
+      const ts = new Date().toISOString();
+      await base44.entities.Candidate.update(id, { deleted_at: ts });
+      setCandidates(prev => prev.filter(c => c.id !== id));
+    } catch (err) {
+      console.error('Delete error:', err);
+      alert('Ошибка удаления: ' + err.message);
+    }
   };
 
   const handleArchive = async (c) => {
     await base44.entities.Candidate.update(c.id, { is_archived: true });
-    await logCandidateAction({ action: 'update', candidate: { ...c, is_archived: true }, oldData: c, actor: getActor() });
     setCandidates(prev => prev.map(x => x.id === c.id ? { ...x, is_archived: true } : x));
   };
 
   const handleUnarchive = async (c) => {
     await base44.entities.Candidate.update(c.id, { is_archived: false });
-    await logCandidateAction({ action: 'update', candidate: { ...c, is_archived: false }, oldData: c, actor: getActor() });
     setCandidates(prev => prev.map(x => x.id === c.id ? { ...x, is_archived: false } : x));
-  };
-
-  const generateFormToken = async (c) => {
-    const token = 'cf-' + Math.random().toString(36).substring(2, 10) + '-' + Math.random().toString(36).substring(2, 10);
-    await base44.entities.Candidate.update(c.id, { form_token: token, form_status: 'pending' });
-    await base44.entities.CandidateForm.create({ candidate_id: c.id, form_token: token, status: 'pending' });
-    load();
   };
 
   const exportCSV = () => {
@@ -177,23 +122,6 @@ export default function AgencyWorkspace() {
 
   const isArchivable = (c) => c.payment_made === 'Да' || c.payment_basis === 'Отказался от отправки';
 
-  const copyFormLink = (c) => {
-    if (!c.form_token) return;
-    const url = `${window.location.origin}/form/${c.form_token}`;
-    navigator.clipboard.writeText(url);
-    setCopiedId(c.id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  const getFormStatusBadge = (c) => {
-    if (c.form_status === 'completed') return (
-      <a href={`/form/${c.form_token}?edit=1`} target="_blank" rel="noreferrer"
-        className="text-xs px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/25 whitespace-nowrap hover:bg-green-500/25 transition-all">✓ Заполнена</a>
-    );
-    if (c.form_status === 'pending' || c.form_token) return <span className="text-xs px-1.5 py-0.5 rounded bg-[#C9A84C]/10 text-[#C9A84C]/80 border border-[#C9A84C]/20 whitespace-nowrap">Ожидает</span>;
-    return null;
-  };
-
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
   const hasFilters = Object.values(filters).some(Boolean) || search;
 
@@ -207,8 +135,7 @@ export default function AgencyWorkspace() {
       const matchPos = !filters.position || c.position === filters.position;
       const matchSB  = !filters.sb_check || c.sb_check === filters.sb_check;
       const matchMed = !filters.medical_check || c.medical_check === filters.medical_check;
-      const matchDocs = !filters.incomplete_docs || hasMissingRequiredDocs(c);
-      return matchSearch && matchPos && matchSB && matchMed && matchDocs;
+      return matchSearch && matchPos && matchSB && matchMed;
     });
   };
 
@@ -262,7 +189,7 @@ export default function AgencyWorkspace() {
       </div>
 
       <div className="max-w-[1400px] mx-auto px-6 py-6">
-        {/* Agency info card — compact */}
+        {/* Agency info card */}
         {agency && (
           <div className="glass-card-gold rounded-xl px-5 py-3 mb-4">
             <div className="flex items-center justify-between gap-4 mb-2">
@@ -324,13 +251,8 @@ export default function AgencyWorkspace() {
             <option value="">Медкомиссия</option>
             {['Не проверялся','Прошёл','Не прошёл'].map(s => <option key={s} value={s}>{s}</option>)}
           </select>
-          <button
-            onClick={() => setF('incomplete_docs', !filters.incomplete_docs)}
-            className={`flex items-center gap-2 px-4 py-2 text-xs rounded border transition-all whitespace-nowrap ${filters.incomplete_docs ? 'border-red-500/50 text-red-400 bg-red-500/10' : 'border-[rgba(255,255,255,0.1)] text-[#F8FAFC]/40 hover:text-red-400'}`}>
-            <AlertTriangle size={13} /> Без обяз. док.
-          </button>
           {hasFilters && (
-            <button onClick={() => { setFilters({ position: '', sb_check: '', medical_check: '', incomplete_docs: false }); setSearch(''); }}
+            <button onClick={() => { setFilters({ position: '', sb_check: '', medical_check: '' }); setSearch(''); }}
               className="flex items-center gap-1 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 rounded-lg transition-all">
               <X size={12} /> Сбросить
             </button>
@@ -368,7 +290,6 @@ export default function AgencyWorkspace() {
                     <th className="px-4 py-3"><Tooltip text="Основание для выплаты"><Banknote size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
                     <th className="px-4 py-3"><Tooltip text="Выплачено"><CheckCircle size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
                     <th className="px-4 py-3"><Tooltip text="Комментарий"><MessageSquare size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
-                    <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider whitespace-nowrap">Анкета</th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider">Действия</th>
                   </tr>
                 </thead>
@@ -376,28 +297,7 @@ export default function AgencyWorkspace() {
                   {displayed.map(c => (
                     <tr key={c.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(123,63,191,0.06)] transition-colors">
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          {hasMissingRequiredDocs(c) && (
-                            <HoverCard>
-                              <HoverCardTrigger asChild>
-                                <span className="cursor-help flex-shrink-0">
-                                  <AlertTriangle size={13} className="text-red-400"/>
-                                </span>
-                              </HoverCardTrigger>
-                              <HoverCardContent className="w-64 bg-[#0D1B3E] border-red-500/30 text-[#F8FAFC]">
-                                <div className="space-y-1.5 text-xs">
-                                  <div className="font-bold text-red-400">Не хватает обязательных документов:</div>
-                                  {getMissingRequiredDocs(c.documents || []).map(m => (
-                                    <div key={m.id} className="text-[#F8FAFC]/60 flex items-center gap-1.5">
-                                      <span className="text-red-400">•</span> {m.label}
-                                    </div>
-                                  ))}
-                                </div>
-                              </HoverCardContent>
-                            </HoverCard>
-                          )}
-                          <div className="font-bold text-[#F8FAFC]">{c.full_name}</div>
-                        </div>
+                        <div className="font-bold text-[#F8FAFC]">{c.full_name}</div>
                       </td>
                       <td className="px-4 py-3 text-[#F8FAFC]/60 text-xs whitespace-nowrap">{c.position || '—'}</td>
                       <td className="px-4 py-3 text-xs text-[#F8FAFC]/55">
@@ -407,21 +307,16 @@ export default function AgencyWorkspace() {
                               <span className="cursor-help underline decoration-dotted underline-offset-2 hover:text-[#7B3FBF] transition-colors">{c.city}</span>
                             </HoverCardTrigger>
                             <HoverCardContent className="w-72 bg-[#0D1B3E] border-[rgba(123,63,191,0.3)] text-[#F8FAFC]">
-                              {(() => {
-                                const cityInfo = cityCache[c.city.toLowerCase()];
-                                return (
-                                  <div className="space-y-2 text-xs">
-                                    <div className="font-bold text-[#F8FAFC]">{c.city}</div>
-                                    {cityInfo?.region && <div className="text-[#F8FAFC]/60">Регион: {cityInfo.region}</div>}
-                                    {c.assembly_point && (
-                                      <div className="pt-2 border-t border-[rgba(123,63,191,0.15)]">
-                                        <div className="text-[#F8FAFC]/50">Пункт сбора:</div>
-                                        <div className="text-[#7B3FBF] font-bold">{c.assembly_point}</div>
-                                      </div>
-                                    )}
+                              <div className="space-y-2 text-xs">
+                                <div className="font-bold text-[#F8FAFC]">{c.city}</div>
+                                {cityCache[c.city.toLowerCase()]?.region && <div className="text-[#F8FAFC]/60">Регион: {cityCache[c.city.toLowerCase()].region}</div>}
+                                {c.assembly_point && (
+                                  <div className="pt-2 border-t border-[rgba(123,63,191,0.15)]">
+                                    <div className="text-[#F8FAFC]/50">Пункт сбора:</div>
+                                    <div className="text-[#7B3FBF] font-bold">{c.assembly_point}</div>
                                   </div>
-                                );
-                              })()}
+                                )}
+                              </div>
                             </HoverCardContent>
                           </HoverCard>
                         ) : '—'}
@@ -455,21 +350,6 @@ export default function AgencyWorkspace() {
                         ) : <span className="text-[#F8FAFC]/20">—</span>}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {getFormStatusBadge(c)}
-                          {c.form_token && c.form_status !== 'completed' && (
-                            <button onClick={() => copyFormLink(c)} title="Скопировать ссылку"
-                              className="p-1.5 rounded hover:bg-[#7B3FBF]/20 text-[#F8FAFC]/40 hover:text-[#7B3FBF] transition-all flex-shrink-0">
-                              {copiedId === c.id ? <CheckCircle size={13} className="text-green-400" /> : <ClipboardCopy size={13} />}
-                            </button>
-                          )}
-                          {!c.form_token && (
-                            <button onClick={() => generateFormToken(c)} title="Создать анкету"
-                              className="text-xs text-white/30 hover:text-[#7B3FBF] transition-all">+ Создать</button>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
                           {showArchive ? (
                             <button onClick={() => handleUnarchive(c)} title="Вернуть из архива"
@@ -500,7 +380,7 @@ export default function AgencyWorkspace() {
                   ))}
                   {displayed.length === 0 && (
                     <tr>
-                      <td colSpan={11} className="text-center py-16 text-[#F8FAFC]/30">
+                      <td colSpan={10} className="text-center py-16 text-[#F8FAFC]/30">
                         <div className="flex flex-col items-center gap-3">
                           <Users size={32} className="text-[#F8FAFC]/15" />
                           <p>{showArchive ? 'Архив пуст' : candidates.length > 0 ? 'Нет кандидатов по фильтрам' : 'Кандидатов пока нет. Добавьте первого!'}</p>

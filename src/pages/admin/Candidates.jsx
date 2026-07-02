@@ -1,14 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Download, Search, Trash2, Edit2, X, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, Archive, ArchiveRestore, AlertTriangle, ClipboardList, ClipboardCopy, Link2, Sparkles, Loader2 } from 'lucide-react';
+import { Plus, Download, Search, Trash2, Edit2, X, MessageSquare, Shield, Stethoscope, Banknote, CheckCircle, MapPin, CalendarDays, RefreshCw, Archive, ArchiveRestore, ClipboardList } from 'lucide-react';
 import CandidateModal from '../../components/admin/CandidateModal';
 import InlineCommentCell from '@/components/admin/InlineCommentCell';
 import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card';
-import { findDuplicateIds } from '@/lib/candidateDuplicates';
-import { hasMissingRequiredDocs, getMissingRequiredDocs } from '@/lib/docUtils';
-import { logCandidateAction } from '@/lib/candidateLogger';
-import { findNearestAssemblyPoint } from '@/lib/geoUtils';
 
 const POSITIONS = ['Разнорабочий','Строитель','Водитель B','Водитель C','Водитель CE','Водитель D','Автослесарь','Инженер связи','Оператор БПЛА','Взрывотехник','Медицинский работник','Охранник'];
 const SB_COLORS  = { 'Не проверялся':'text-[#F8FAFC]/40', 'На проверке':'text-yellow-400', 'Согласован':'text-green-400', 'Не согласован':'text-red-400' };
@@ -36,14 +32,10 @@ export default function Candidates() {
   const [search, setSearch]         = useState('');
   const [modalOpen, setModalOpen]   = useState(false);
   const [editCandidate, setEditCandidate] = useState(null);
-  const [filters, setFilters] = useState({ agency: '', position: '', sb_check: '', medical_check: '', form_status: '', incomplete_docs: false });
+  const [filters, setFilters] = useState({ agency: '', position: '', sb_check: '', medical_check: '' });
   const [showArchive, setShowArchive] = useState(false);
-  const [duplicateIds, setDuplicateIds] = useState(new Set());
-  const [currentUser, setCurrentUser] = useState(null);
-  const [copiedId, setCopiedId] = useState(null);
   const [cityCache, setCityCache] = useState({});
   const [searchParams] = useSearchParams();
-  const [animatingId, setAnimatingId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,36 +43,15 @@ export default function Candidates() {
       base44.entities.Candidate.list('-created_date', 500),
       base44.entities.Agency.list('-created_date', 200),
     ]);
-    // Параллельно загружаем пункты сбора, справочник городов и анкеты
-    const [cities, forms] = await Promise.all([
-      base44.entities.City.list('-created_date', 500),
-      base44.entities.CandidateForm.filter({ status: 'completed' }, '-created_date', 500),
-    ]);
-    // Мёрджим документы из завершённых анкет в карточки кандидатов
-    const formDocsByCandidate = {};
-    forms.forEach(f => {
-      if (f.candidate_id && f.uploaded_docs?.length) {
-        formDocsByCandidate[f.candidate_id] = f.uploaded_docs;
-      }
-    });
+    const cities = await base44.entities.City.list('-created_date', 500);
     const cityMap = {};
     cities.forEach(c => { if (c.name) cityMap[c.name.toLowerCase()] = c; });
     const activeAg = ag.filter(a => !a.deleted_at);
     const activeAgIds = new Set(activeAg.map(a => a.id));
     const filtered = cand
       .filter(c => !c.deleted_at)
-      .filter(c => !c.agency_id || activeAgIds.has(c.agency_id))
-      .map(c => {
-        const formDocs = formDocsByCandidate[c.id];
-        if (formDocs?.length) {
-          const existingUrls = new Set((c.documents || []).map(d => d.url).filter(Boolean));
-          const newDocs = formDocs.filter(fd => !existingUrls.has(fd.url));
-          return { ...c, documents: [...(c.documents || []), ...newDocs] };
-        }
-        return c;
-      });
+      .filter(c => !c.agency_id || activeAgIds.has(c.agency_id));
     setCandidates(filtered);
-    setDuplicateIds(findDuplicateIds(filtered));
     setAgencies(activeAg);
     setCityCache(cityMap);
     setLoading(false);
@@ -88,89 +59,47 @@ export default function Candidates() {
 
   useEffect(() => {
     load();
-    // Загружаем текущего пользователя для логов
-    base44.auth.me().then(u => setCurrentUser(u)).catch(() => {});
     const agencyParam = searchParams.get('agency');
     if (agencyParam) setFilters(f => ({ ...f, agency: agencyParam }));
-
-    // Периодическая проверка дублей каждые 2 минуты
-    const interval = setInterval(async () => {
-      const cand = await base44.entities.Candidate.list('-created_date', 500);
-      const activeCand = cand.filter(c => !c.deleted_at);
-      setDuplicateIds(findDuplicateIds(activeCand));
-      setCandidates(prev => {
-        if (prev.length !== activeCand.length) return activeCand;
-        return prev;
-      });
-    }, 120000);
-    return () => clearInterval(interval);
   }, []);
-
-  const getActor = () => ({
-    name: currentUser?.full_name || currentUser?.email || 'Администратор',
-    role: 'admin',
-  });
 
   const handleSave = async (data, id) => {
     try {
       if (id) {
-        const old = candidates.find(c => c.id === id);
         await base44.entities.Candidate.update(id, data);
-        await logCandidateAction({ action: 'update', candidate: { ...data, id }, oldData: old, actor: getActor() });
         setCandidates(prev => prev.map(x => x.id === id ? { ...x, ...data } : x));
       } else {
-        const response = await base44.functions.invoke('createCandidateSafe', {
-          candidate_data: data,
-          actor: getActor(),
-        });
-        if (response.data?.error === 'duplicate') {
-          const ex = response.data.existing_candidate;
-          alert(`Дубль: кандидат «${ex.full_name}» с датой рождения ${ex.birth_date} уже существует${ex.agency_name ? ` (агентство: ${ex.agency_name})` : ''}.\nСоздание заблокировано.`);
-          return false;
-        }
-        const newCandidate = response.data?.candidate;
-        if (newCandidate) {
-          setCandidates(prev => [newCandidate, ...prev]);
-        }
+        const newCandidate = await base44.entities.Candidate.create(data);
+        setCandidates(prev => [newCandidate, ...prev]);
       }
       setModalOpen(false);
       setEditCandidate(null);
-      return true;
     } catch (err) {
-      console.error('handleSave error:', err);
-      const errData = err?.response?.data;
-      if (errData?.error === 'duplicate') {
-        const ex = errData.existing_candidate;
-        alert(`Дубль: кандидат «${ex.full_name}» с датой рождения ${ex.birth_date} уже существует${ex.agency_name ? ` (агентство: ${ex.agency_name})` : ''}.\nСоздание заблокировано.`);
-      } else {
-        alert('Ошибка при сохранении: ' + (err.message || 'неизвестная ошибка. Проверьте подключение.'));
-      }
-      return false;
+      console.error('❌ Ошибка сохранения:', err);
+      const msg = err?.response?.data?.message || err?.message || 'Неизвестная ошибка';
+      alert(`Ошибка: ${msg}`);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Переместить кандидата в корзину? Запись можно будет восстановить.')) return;
-    const cand = candidates.find(c => c.id === id);
-    const ts = new Date().toISOString();
-    await base44.entities.Candidate.update(id, { deleted_at: ts });
-    await logCandidateAction({ action: 'delete', candidate: { ...cand, deleted_at: ts }, actor: getActor() });
-    if (cand?.agency_id) {
-      const remaining = candidates.filter(c => c.id !== id && c.agency_id === cand.agency_id);
-      await base44.entities.Agency.update(cand.agency_id, { candidates_count: remaining.length });
+    if (!window.confirm('Удалить кандидата? Запись будет перемещена в корзину.')) return;
+    try {
+      const ts = new Date().toISOString();
+      await base44.entities.Candidate.update(id, { deleted_at: ts });
+      setCandidates(prev => prev.filter(c => c.id !== id));
+    } catch (err) {
+      console.error('Delete error:', err);
+      alert('Ошибка удаления: ' + err.message);
     }
-    load();
   };
 
   const handleArchive = async (c) => {
     await base44.entities.Candidate.update(c.id, { is_archived: true });
-    await logCandidateAction({ action: 'update', candidate: { ...c, is_archived: true }, oldData: c, actor: getActor() });
     setCandidates(prev => prev.map(x => x.id === c.id ? { ...x, is_archived: true } : x));
   };
 
   const handleUnarchive = async (c) => {
     await base44.entities.Candidate.update(c.id, { is_archived: false });
-    await logCandidateAction({ action: 'update', candidate: { ...c, is_archived: false }, oldData: c, actor: getActor() });
     setCandidates(prev => prev.map(x => x.id === c.id ? { ...x, is_archived: false } : x));
   };
 
@@ -201,80 +130,13 @@ export default function Candidates() {
       const matchPos    = !filters.position || c.position === filters.position;
       const matchSB     = !filters.sb_check || c.sb_check === filters.sb_check;
       const matchMed    = !filters.medical_check || c.medical_check === filters.medical_check;
-      const matchForm   = !filters.form_status || c.form_status === filters.form_status;
-      const matchDocs   = !filters.incomplete_docs || hasMissingRequiredDocs(c);
-      return matchSearch && matchAgency && matchPos && matchSB && matchMed && matchForm && matchDocs;
+      return matchSearch && matchAgency && matchPos && matchSB && matchMed;
     });
   };
 
   const filteredActive   = applyFilters(active);
   const filteredArchived = applyFilters(archived);
   const displayed = showArchive ? filteredArchived : filteredActive;
-
-  const handleAutoAssembly = async (c) => {
-    if (!c.city) { alert('У кандидата не указан город проживания'); return; }
-    setAnimatingId(c.id);
-    try {
-      // 1. Находим город кандидата в справочнике (cityCache уже загружен)
-      const candidateCity = cityCache[c.city.toLowerCase()];
-      if (!candidateCity || candidateCity.lat == null || candidateCity.lon == null) {
-        alert(`Город «${c.city}» не найден в справочнике или у него нет координат. Добавьте город в справочник через ИИ-помощник.`);
-        return;
-      }
-
-      // 2. Список городов-точек сбора = только города с флагом is_assembly_point, у которых есть координаты
-      const assemblyPoints = Object.values(cityCache).filter(
-        city => city.is_assembly_point === true && city.lat != null && city.lon != null && city.name.toLowerCase() !== c.city.toLowerCase()
-      );
-
-      if (!assemblyPoints.length) {
-        alert('В справочнике нет городов с координатами для расчёта расстояний.');
-        return;
-      }
-
-      // 3. Находим ближайший по формуле Гаверсинуса
-      const result = findNearestAssemblyPoint(candidateCity.lat, candidateCity.lon, assemblyPoints);
-      if (!result) {
-        alert('Не удалось рассчитать расстояние до точек сбора.');
-        return;
-      }
-
-      const nearest = result.point;
-      const distanceKm = result.distance;
-
-      const autoComment = `🤖 Точка сбора определена автоматически: ${nearest.name} (${distanceKm} км). Уточните возможность прибытия кандидата на медкомиссию и дату прибытия.`;
-      // Удаляем старый авто-комментарий перед добавлением нового
-      let baseComment = c.comment || '';
-      const marker = '🤖 Точка сбора определена автоматически:';
-      const markerIdx = baseComment.indexOf(marker);
-      if (markerIdx !== -1) {
-        baseComment = baseComment.substring(0, markerIdx).replace(/\n{2,}$/, '').trim();
-      }
-      const newComment = baseComment ? `${baseComment}\n\n${autoComment}` : autoComment;
-      const updated = { assembly_point: nearest.name, assembly_distance: String(distanceKm), comment: newComment };
-
-      await base44.entities.Candidate.update(c.id, updated);
-      await logCandidateAction({ action: 'update', candidate: { ...c, ...updated }, oldData: c, actor: getActor() });
-      setCandidates(prev => prev.map(x => x.id === c.id ? { ...x, ...updated } : x));
-    } finally {
-      setAnimatingId(null);
-    }
-  };
-
-  const generateFormToken = async (c) => {
-    const token = 'cf-' + Math.random().toString(36).substring(2, 10) + '-' + Math.random().toString(36).substring(2, 10);
-    await base44.entities.Candidate.update(c.id, { form_token: token, form_status: 'pending' });
-    await base44.entities.CandidateForm.create({ candidate_id: c.id, form_token: token, status: 'pending' });
-    load();
-  };
-
-  const copyFormLink = (c) => {
-    if (!c.form_token) return;
-    const url = `${window.location.origin}/form/${c.form_token}`;
-    navigator.clipboard.writeText(url);
-    setCopiedId(c.id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
 
   const setF = (k, v) => setFilters(f => ({ ...f, [k]: v }));
   const inp = "px-3 py-2 bg-[rgba(255,255,255,0.04)] border border-[rgba(123,63,191,0.2)] rounded-lg text-sm text-[#F8FAFC] focus:outline-none focus:border-[#7B3FBF]";
@@ -293,8 +155,6 @@ export default function Candidates() {
     c.payment_made !== 'Да'
   ).length;
 
-  const dupCount = [...duplicateIds].filter(id => active.some(c => c.id === id)).length;
-
   return (
     <div className="min-h-screen bg-[#05070A] text-[#F8FAFC]">
       {/* Header */}
@@ -310,10 +170,6 @@ export default function Candidates() {
             <h1 className="text-sm font-bold text-[#F8FAFC]">База кандидатов</h1>
           </div>
           <div className="flex items-center gap-2">
-            <Link to="/admin/assistant"
-              className="flex items-center gap-2 px-4 py-2 text-xs rounded border border-[rgba(201,168,76,0.3)] text-[#C9A84C] hover:bg-[#C9A84C]/10 transition-all">
-              <Sparkles size={13}/> ИИ-помощник
-            </Link>
             <Link to="/admin/assembly-points"
               className="flex items-center gap-2 px-4 py-2 text-xs rounded border border-[rgba(201,168,76,0.3)] text-[#C9A84C] hover:bg-[#C9A84C]/10 transition-all">
               <MapPin size={13}/> Точки сбора
@@ -326,7 +182,6 @@ export default function Candidates() {
               className="flex items-center gap-2 px-4 py-2 text-xs rounded border border-[rgba(255,255,255,0.1)] text-[#F8FAFC]/40 hover:text-red-400 hover:border-red-500/30 transition-all">
               <Trash2 size={13}/> Корзина
             </Link>
-
             <button onClick={load} title="Обновить данные"
               className="p-2 rounded-lg border border-[rgba(123,63,191,0.2)] text-[#F8FAFC]/50 hover:text-[#7B3FBF] hover:border-[#7B3FBF]/40 transition-all">
               <RefreshCw size={14} />
@@ -351,14 +206,6 @@ export default function Candidates() {
       </div>
 
       <div className="max-w-[1400px] mx-auto px-6 py-6">
-        {/* Предупреждение о дублях */}
-        {dupCount > 0 && !showArchive && (
-          <div className="mb-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-sm">
-            <AlertTriangle size={15} className="flex-shrink-0"/>
-            <span>Обнаружено <strong>{dupCount}</strong> дублирующих записей — выделены красным в таблице</span>
-          </div>
-        )}
-
         {/* Stats */}
         {!showArchive && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
@@ -408,18 +255,8 @@ export default function Candidates() {
             <option value="">Медкомиссия</option>
             {['Не проверялся','Прошёл','Не прошёл'].map(s => <option key={s} value={s}>{s}</option>)}
           </select>
-          <select value={filters.form_status} onChange={e => setF('form_status', e.target.value)} className={inp}>
-            <option value="">Анкета: все</option>
-            <option value="completed">Анкета заполнена</option>
-            <option value="pending">Анкета не заполнена</option>
-          </select>
-          <button
-            onClick={() => setF('incomplete_docs', !filters.incomplete_docs)}
-            className={`flex items-center gap-2 px-4 py-2 text-xs rounded border transition-all whitespace-nowrap ${filters.incomplete_docs ? 'border-red-500/50 text-red-400 bg-red-500/10' : 'border-[rgba(255,255,255,0.1)] text-[#F8FAFC]/40 hover:text-red-400'}`}>
-            <AlertTriangle size={13} /> Без обяз. документов
-          </button>
           {Object.values(filters).some(Boolean) && (
-            <button onClick={() => setFilters({ agency:'', position:'', sb_check:'', medical_check:'', form_status:'', incomplete_docs: false })}
+            <button onClick={() => setFilters({ agency:'', position:'', sb_check:'', medical_check: '' })}
               className="flex items-center gap-1 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 rounded-lg transition-all">
               <X size={12} /> Сбросить
             </button>
@@ -449,159 +286,102 @@ export default function Candidates() {
                     <th className="px-4 py-3"><Tooltip text="Выплачено"><CheckCircle size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider whitespace-nowrap">Добавлен</th>
                     <th className="px-4 py-3"><Tooltip text="Комментарий"><MessageSquare size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
-                    <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider whitespace-nowrap"><Tooltip text="Онлайн-анкета"><Link2 size={13} className="text-[#F8FAFC]/35" /></Tooltip></th>
                     <th className="text-left px-4 py-3 text-xs font-bold text-[#F8FAFC]/35 uppercase tracking-wider">Действия</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {displayed.map((c) => {
-                    const isDuplicate = duplicateIds.has(c.id);
-                    const rowClass = isDuplicate
-                      ? 'border-b border-red-500/30 bg-red-500/8 hover:bg-red-500/12 transition-colors'
-                      : 'border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(123,63,191,0.06)] transition-colors';
-                    return (
-                      <tr key={c.id} className={rowClass}>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1.5">
-                            {isDuplicate && (
-                              <Tooltip text="Дубль: кандидат с таким ФИО и датой рождения уже есть в базе">
-                                <AlertTriangle size={13} className="text-red-400 flex-shrink-0"/>
-                              </Tooltip>
-                            )}
-                            {hasMissingRequiredDocs(c) && (
-                              <HoverCard>
-                                <HoverCardTrigger asChild>
-                                  <span className="cursor-help flex-shrink-0">
-                                    <AlertTriangle size={13} className="text-red-400"/>
-                                  </span>
-                                </HoverCardTrigger>
-                                <HoverCardContent className="w-64 bg-[#0D1B3E] border-red-500/30 text-[#F8FAFC]">
-                                  <div className="space-y-1.5 text-xs">
-                                    <div className="font-bold text-red-400">Не хватает обязательных документов:</div>
-                                    {getMissingRequiredDocs(c.documents || []).map(m => (
-                                      <div key={m.id} className="text-[#F8FAFC]/60 flex items-center gap-1.5">
-                                        <span className="text-red-400">•</span> {m.label}
-                                      </div>
-                                    ))}
+                  {displayed.map((c) => (
+                    <tr key={c.id} className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(123,63,191,0.06)] transition-colors">
+                      <td className="px-4 py-3">
+                        <div>
+                          <div className="font-bold text-[#F8FAFC]">{c.full_name}</div>
+                          <div className="text-xs text-[#F8FAFC]/35">{c.agency_name || '—'}</div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-[#F8FAFC]/60 text-xs whitespace-nowrap">{c.position || '—'}</td>
+                      <td className="px-4 py-3 text-xs text-[#F8FAFC]/55">
+                        {c.city ? (
+                          <HoverCard>
+                            <HoverCardTrigger asChild>
+                              <span className="cursor-help underline decoration-dotted underline-offset-2 hover:text-[#7B3FBF] transition-colors">{c.city}</span>
+                            </HoverCardTrigger>
+                            <HoverCardContent side="top" sideOffset={4} className="w-72 bg-[#0D1B3E] border-[rgba(123,63,191,0.3)] text-[#F8FAFC]">
+                              <div className="space-y-2 text-xs">
+                                <div className="font-bold text-[#F8FAFC]">{c.city}</div>
+                                {cityCache[c.city.toLowerCase()]?.region && <div className="text-[#F8FAFC]/60">Регион: {cityCache[c.city.toLowerCase()].region}</div>}
+                                {c.assembly_point && (
+                                  <div className="pt-2 border-t border-[rgba(123,63,191,0.15)]">
+                                    <div className="text-[#F8FAFC]/50">Пункт сбора:</div>
+                                    <div className="text-[#7B3FBF] font-bold">{c.assembly_point}</div>
+                                    {c.assembly_distance && <div className="text-[#C9A84C] mt-1">Расстояние: {c.assembly_distance} км</div>}
                                   </div>
-                                </HoverCardContent>
-                              </HoverCard>
-                            )}
-                            <div>
-                              <div className={`font-bold ${isDuplicate ? 'text-red-300' : 'text-[#F8FAFC]'}`}>{c.full_name}</div>
-                              <div className="text-xs text-[#F8FAFC]/35">{c.agency_name || '—'}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-[#F8FAFC]/60 text-xs whitespace-nowrap">{c.position || '—'}</td>
-                        <td className="px-4 py-3 text-xs text-[#F8FAFC]/55">
-                          {c.city ? (
-                            <HoverCard>
-                              <HoverCardTrigger asChild>
-                                <span className="cursor-help underline decoration-dotted underline-offset-2 hover:text-[#7B3FBF] transition-colors">{c.city}</span>
-                              </HoverCardTrigger>
-                              <HoverCardContent side="top" sideOffset={4} className="w-72 bg-[#0D1B3E] border-[rgba(123,63,191,0.3)] text-[#F8FAFC]">
-                                {(() => {
-                                  const cityInfo = cityCache[c.city.toLowerCase()];
-                                  return (
-                                    <div className="space-y-2 text-xs">
-                                      <div className="font-bold text-[#F8FAFC]">{c.city}</div>
-                                      {cityInfo?.region && <div className="text-[#F8FAFC]/60">Регион: {cityInfo.region}</div>}
-                                      {c.assembly_point && (
-                                        <div className="pt-2 border-t border-[rgba(123,63,191,0.15)]">
-                                          <div className="text-[#F8FAFC]/50">Пункт сбора:</div>
-                                          <div className="text-[#7B3FBF] font-bold">{c.assembly_point}</div>
-                                          {c.assembly_distance && <div className="text-[#C9A84C] mt-1">Расстояние: {c.assembly_distance} км</div>}
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })()}
-                              </HoverCardContent>
-                            </HoverCard>
-                          ) : '—'}
-                          {c.assembly_point && <div className="text-[#F8FAFC]/30 mt-0.5">{c.assembly_point}</div>}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`text-xs font-medium ${SB_COLORS[c.sb_check] || 'text-[#F8FAFC]/40'}`}>
-                            {c.sb_check === 'Согласован' ? '✓' : c.sb_check === 'Не согласован' ? '✗' : c.sb_check === 'На проверке' ? '⏳' : '—'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`text-xs font-medium ${MED_COLORS[c.medical_check] || 'text-[#F8FAFC]/40'}`}>
-                            {c.medical_check === 'Прошёл' ? '✓' : c.medical_check === 'Не прошёл' ? '✗' : '—'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-[#F8FAFC]/45 whitespace-nowrap">
-                          {c.arrival_date ? c.arrival_date.split('-').reverse().join('.') : '—'}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`text-xs ${PAY_COLORS[c.payment_basis] || 'text-[#F8FAFC]/25'}`}>
-                            {c.payment_basis || '—'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`text-xs font-medium ${c.payment_made === 'Да' ? 'text-green-400' : 'text-[#F8FAFC]/30'}`}>
-                            {c.payment_made === 'Да' ? '✓ Да' : 'Нет'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-[#F8FAFC]/40 whitespace-nowrap">
-                          {c.created_date
-                            ? new Date(c.created_date).toLocaleDateString('ru-RU') + ' ' + new Date(c.created_date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
-                            : '—'}
-                        </td>
-                        <td className="px-4 py-3">
-                          <InlineCommentCell candidate={c} onUpdate={(id, data) => setCandidates(prev => prev.map(x => x.id === id ? { ...x, ...data } : x))} />
-                        </td>
-                        <td className="px-4 py-3">
-                          {c.form_status === 'completed'
-                            ? <a href={`/form/${c.form_token}?edit=1`} target="_blank" rel="noreferrer"
-                                className="text-xs px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/25 whitespace-nowrap hover:bg-green-500/25 transition-all cursor-pointer">✓ Заполнена</a>
-                            : c.form_token
-                              ? <button onClick={() => copyFormLink(c)} title="Скопировать ссылку"
-                                  className="flex items-center gap-1 text-xs text-[#7B3FBF]/70 hover:text-[#7B3FBF] transition-all">
-                                  {copiedId === c.id ? <CheckCircle size={12} className="text-green-400" /> : <ClipboardCopy size={12} />}
-                                  <span>{copiedId === c.id ? 'Скопировано' : 'Ссылка'}</span>
-                                </button>
-                              : <button onClick={() => generateFormToken(c)} title="Создать анкету"
-                                  className="text-xs text-white/30 hover:text-[#7B3FBF] transition-all">+ Создать</button>}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1">
-                            {showArchive ? (
-                              <button onClick={() => handleUnarchive(c)} title="Вернуть из архива"
-                                className="p-1.5 rounded hover:bg-green-500/20 text-[#F8FAFC]/50 hover:text-green-400 transition-all">
-                                <ArchiveRestore size={14}/>
-                              </button>
-                            ) : (
-                              <>
-                                {c.form_status === 'completed' && c.city && (
-                                  <button onClick={() => handleAutoAssembly(c)} title="Авто-подбор точки сбора" disabled={animatingId === c.id}
-                                    className={`p-1.5 rounded transition-all ${animatingId === c.id ? 'opacity-50 cursor-wait' : ''} ${c.assembly_point ? 'bg-[#C9A84C]/15 text-[#C9A84C] hover:bg-[#C9A84C]/25' : 'text-[#F8FAFC]/50 hover:bg-[#C9A84C]/20 hover:text-[#C9A84C]'}`}>
-                                    {animatingId === c.id ? <Loader2 size={14} className="animate-spin"/> : <MapPin size={14}/>}
-                                  </button>
                                 )}
-                                <button onClick={() => { setEditCandidate(c); setModalOpen(true); }}
-                                  className="p-1.5 rounded hover:bg-[#7B3FBF]/20 text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-all">
-                                  <Edit2 size={14}/>
-                                </button>
-                                {isArchivable(c) && (
-                                  <button onClick={() => handleArchive(c)} title="Переместить в архив"
-                                    className="p-1.5 rounded hover:bg-[#C9A84C]/20 text-[#F8FAFC]/50 hover:text-[#C9A84C] transition-all">
-                                    <Archive size={14}/>
-                                  </button>
-                                )}
-                              </>
-                            )}
-                            <button onClick={() => handleDelete(c.id)}
-                              className="p-1.5 rounded hover:bg-red-500/20 text-[#F8FAFC]/50 hover:text-red-400 transition-all">
-                              <Trash2 size={14}/>
+                              </div>
+                            </HoverCardContent>
+                          </HoverCard>
+                        ) : '—'}
+                        {c.assembly_point && <div className="text-[#F8FAFC]/30 mt-0.5">{c.assembly_point}</div>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-medium ${SB_COLORS[c.sb_check] || 'text-[#F8FAFC]/40'}`}>
+                          {c.sb_check === 'Согласован' ? '✓' : c.sb_check === 'Не согласован' ? '✗' : c.sb_check === 'На проверке' ? '⏳' : '—'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-medium ${MED_COLORS[c.medical_check] || 'text-[#F8FAFC]/40'}`}>
+                          {c.medical_check === 'Прошёл' ? '✓' : c.medical_check === 'Не прошёл' ? '✗' : '—'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-[#F8FAFC]/45 whitespace-nowrap">
+                        {c.arrival_date ? c.arrival_date.split('-').reverse().join('.') : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs ${PAY_COLORS[c.payment_basis] || 'text-[#F8FAFC]/25'}`}>
+                          {c.payment_basis || '—'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-medium ${c.payment_made === 'Да' ? 'text-green-400' : 'text-[#F8FAFC]/30'}`}>
+                          {c.payment_made === 'Да' ? '✓ Да' : 'Нет'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-[#F8FAFC]/40 whitespace-nowrap">
+                        {c.created_date
+                          ? new Date(c.created_date).toLocaleDateString('ru-RU') + ' ' + new Date(c.created_date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+                          : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <InlineCommentCell candidate={c} onUpdate={(id, data) => setCandidates(prev => prev.map(x => x.id === id ? { ...x, ...data } : x))} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          {showArchive ? (
+                            <button onClick={() => handleUnarchive(c)} title="Вернуть из архива"
+                              className="p-1.5 rounded hover:bg-green-500/20 text-[#F8FAFC]/50 hover:text-green-400 transition-all">
+                              <ArchiveRestore size={14}/>
                             </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                          ) : (
+                            <>
+                              <button onClick={() => { setEditCandidate(c); setModalOpen(true); }}
+                                className="p-1.5 rounded hover:bg-[#7B3FBF]/20 text-[#F8FAFC]/50 hover:text-[#7B3FBF] transition-all">
+                                <Edit2 size={14}/>
+                              </button>
+                              {isArchivable(c) && (
+                                <button onClick={() => handleArchive(c)} title="Переместить в архив"
+                                  className="p-1.5 rounded hover:bg-[#C9A84C]/20 text-[#F8FAFC]/50 hover:text-[#C9A84C] transition-all">
+                                  <Archive size={14}/>
+                                </button>
+                              )}
+                            </>
+                          )}
+                          <button onClick={() => handleDelete(c.id)}
+                            className="p-1.5 rounded hover:bg-red-500/20 text-[#F8FAFC]/50 hover:text-red-400 transition-all">
+                            <Trash2 size={14}/>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                   {displayed.length === 0 && (
                     <tr><td colSpan={11} className="text-center py-12 text-[#F8FAFC]/30">
                       {showArchive ? 'Архив пуст' : 'Кандидаты не найдены'}

@@ -25,14 +25,12 @@ import ManagerHandbook from './pages/ManagerHandbook';
 import Agencies from './pages/admin/Agencies';
 import Candidates from './pages/admin/Candidates';
 import CandidateLogs from './pages/admin/CandidateLogs';
-import Assistant from './pages/admin/Assistant';
 import Tickets from './pages/admin/Tickets';
 import AssemblyPoints from './pages/admin/AssemblyPoints';
 import Trash from './pages/admin/Trash';
 import Users from './pages/admin/Users';
 import Notifications from './pages/admin/Notifications';
 import AgencyNotifications from './pages/AgencyNotifications';
-import AssistantWidget from '@/components/admin/AssistantWidget';
 import NotificationBell from '@/components/admin/NotificationBell';
 
 function App() {
@@ -65,7 +63,6 @@ function App() {
               <Route path="/admin/agencies" element={<Agencies />} />
               <Route path="/admin/candidates" element={<Candidates />} />
               <Route path="/admin/candidate-logs" element={<CandidateLogs />} />
-              <Route path="/admin/assistant" element={<Assistant />} />
               <Route path="/admin/tickets" element={<Tickets />} />
               <Route path="/admin/assembly-points" element={<AssemblyPoints />} />
               <Route path="/admin/notifications" element={<Notifications />} />
@@ -79,7 +76,6 @@ function App() {
 
             <Route path="*" element={<PageNotFound />} />
           </Routes>
-          <AssistantWidget />
           <NotificationBell />
         </Router>
         <Toaster />
